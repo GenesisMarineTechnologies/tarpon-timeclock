@@ -1,10 +1,3 @@
-/*
- * Tarpon Boatworks Time Clock — app.js
- * =====================================
- * STEP 1: Replace the URL below with your Apps Script Web App URL
- * STEP 2: Upload this file to GitHub
- */
-
 var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxiZIyhp7jc4Jt5641Lham4ib0C-aHnjC5Jp8WPNpDPR5nTSgFrwTHXCThPZHSgQcb_/exec";
 var TIMEZONE = "America/New_York";
 
