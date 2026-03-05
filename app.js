@@ -392,27 +392,84 @@ function renderRoster(rows) {
   document.getElementById("today-tbody").innerHTML = html;
 }
 
-/* ── LEADERS ────────────────────────────────────────────── */
+/* ── STATS PANEL ────────────────────────────────────────── */
+var currentStatsTab = "week";
+
+document.querySelectorAll(".stats-tab").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    document.querySelectorAll(".stats-tab").forEach(function (b) { b.classList.remove("active"); });
+    document.querySelectorAll(".stats-content").forEach(function (c) { c.classList.add("hidden"); });
+    btn.classList.add("active");
+    currentStatsTab = btn.getAttribute("data-tab");
+    document.getElementById("stats-" + currentStatsTab).classList.remove("hidden");
+  });
+});
+
 function loadLeaders() {
   apiGet("stats", {}, function (err, data) {
     if (err || !data || !data.ok) return;
-    var list = data.weekLeaders || [];
-    if (!list.length) {
-      document.getElementById("leaders-row").innerHTML =
-        "<span class='leader-placeholder'>No data yet this week</span>";
-      return;
-    }
-    var medals = ["\uD83E\uDD47", "\uD83E\uDD48", "\uD83E\uDD49"];
-    var html = "";
-    for (var i = 0; i < list.length; i++) {
-      html += "<div class='leader-chip'>";
-      html += "<span class='leader-medal'>" + (medals[i] || "") + "</span>";
-      html += "<span class='leader-name'>" + list[i].displayName + "</span>";
-      html += "<span class='leader-pct'>" + list[i].onTimePercent + "%</span>";
-      html += "</div>";
-    }
-    document.getElementById("leaders-row").innerHTML = html;
+    renderStatsTable("week",  data.weekLeaders  || [], data.weekStats  || []);
+    renderStatsTable("month", data.monthLeaders || [], data.monthStats || []);
+    renderStatsTable("year",  data.yearLeaders  || [], data.yearStats  || []);
   });
+}
+
+function renderStatsTable(period, leaders, allStats) {
+  var el = document.getElementById("stats-" + period);
+  if (!el) return;
+
+  if (!allStats || !allStats.length) {
+    el.innerHTML = "<span class='leader-placeholder'>No data yet</span>";
+    return;
+  }
+
+  // Sort by on-time % desc, then least late min
+  var sorted = allStats.slice().sort(function (a, b) {
+    var pa = a.onTimePercent !== null ? a.onTimePercent : -1;
+    var pb = b.onTimePercent !== null ? b.onTimePercent : -1;
+    if (pb !== pa) return pb - pa;
+    return (a.totalLateMin || 0) - (b.totalLateMin || 0);
+  });
+
+  var medals = ["\uD83E\uDD47", "\uD83E\uDD48", "\uD83E\uDD49"];
+  var leaderNames = leaders.map(function (l) { return l.displayName; });
+
+  var html = "<table class='stats-table'>";
+  html += "<thead><tr>";
+  html += "<th class='st-name'>Employee</th>";
+  html += "<th class='st-num'>Shifts</th>";
+  html += "<th class='st-num'>Hrs</th>";
+  html += "<th class='st-num' style='color:var(--red)'>Late<br>Min</th>";
+  html += "<th class='st-num' style='color:var(--green)'>Early<br>Min</th>";
+  html += "<th class='st-num'>On Time</th>";
+  html += "</tr></thead><tbody>";
+
+  for (var i = 0; i < sorted.length; i++) {
+    var s = sorted[i];
+    var medal = "";
+    var leaderIdx = leaderNames.indexOf(s.displayName);
+    if (leaderIdx >= 0 && leaderIdx < 3) medal = medals[leaderIdx] + " ";
+
+    var pctColor = s.onTimePercent === null ? "var(--text-3)"
+      : s.onTimePercent >= 90 ? "var(--green)"
+      : s.onTimePercent >= 70 ? "var(--yellow)"
+      : s.onTimePercent >= 50 ? "var(--orange)"
+      : "var(--red)";
+
+    var lateColor  = s.totalLateMin  > 0 ? "var(--red)"   : "var(--text-3)";
+    var earlyColor = s.totalEarlyMin > 0 ? "var(--green)"  : "var(--text-3)";
+
+    html += "<tr class='st-row'>";
+    html += "<td class='st-name'>" + medal + s.displayName + "</td>";
+    html += "<td class='st-num'>" + (s.shifts || "\u2014") + "</td>";
+    html += "<td class='st-num'>" + (s.totalHours !== null ? s.totalHours : "\u2014") + "</td>";
+    html += "<td class='st-num' style='color:" + lateColor  + "'>" + (s.totalLateMin  || "\u2014") + "</td>";
+    html += "<td class='st-num' style='color:" + earlyColor + "'>" + (s.totalEarlyMin || "\u2014") + "</td>";
+    html += "<td class='st-num' style='color:" + pctColor   + "'>" + (s.onTimePercent !== null ? s.onTimePercent + "%" : "\u2014") + "</td>";
+    html += "</tr>";
+  }
+  html += "</tbody></table>";
+  el.innerHTML = html;
 }
 
 /* ── MANUAL ENTRY ───────────────────────────────────────── */
