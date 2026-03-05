@@ -27,7 +27,7 @@ var requestInFlight = false;
 
 /* ── WAIT FOR DOM ───────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded", function () {
-  if (APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycbxiZIyhp7jc4Jt5641Lham4ib0C-aHnjC5Jp8WPNpDPR5nTSgFrwTHXCThPZHSgQcb_/exec") {
+  if (APPS_SCRIPT_URL === "No website") {
     showStatus("Apps Script URL not set — open app.js on GitHub and paste your URL on line 8", "error");
     document.getElementById("refresh-label").textContent = "Not connected — URL missing";
     return;
