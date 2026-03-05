@@ -586,3 +586,80 @@ input[type="time"].form-control { font-variant-numeric: tabular-nums; }
   .live-time { font-size: 40px; }
   .brand-name { font-size: 22px; letter-spacing: 2px; }
 }
+
+/* ── STATS PANEL ──────────────────────────────────────────── */
+.stats-panel {
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+.stats-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+.stats-tab {
+  flex: 1;
+  padding: 10px 8px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text-3);
+  font-family: 'Teko', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.stats-tab:hover { color: var(--text-1); background: var(--surface-3); }
+.stats-tab.active {
+  color: var(--teal);
+  border-bottom-color: var(--teal);
+  background: var(--surface-1);
+}
+.stats-content {
+  overflow-x: auto;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.stats-content.hidden { display: none; }
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.stats-table thead tr {
+  background: var(--navy);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.stats-table thead th {
+  padding: 7px 8px;
+  color: var(--teal);
+  font-family: 'Teko', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  text-align: center;
+  line-height: 1.2;
+}
+.stats-table thead th.st-name { text-align: left; }
+.st-row { border-bottom: 1px solid var(--border); transition: background .1s; }
+.st-row:hover { background: var(--surface-3); }
+.st-row:nth-child(even) { background: rgba(0,0,0,.15); }
+.st-row:nth-child(even):hover { background: var(--surface-3); }
+.stats-table td { padding: 7px 8px; }
+.stats-table td.st-name {
+  font-weight: 600;
+  color: var(--text-1);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.stats-table td.st-num {
+  text-align: center;
+  font-family: 'Teko', sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-2);
+}
