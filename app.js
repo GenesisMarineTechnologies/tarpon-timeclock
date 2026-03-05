@@ -5,7 +5,7 @@
  */
 
 /* ── CONFIG ──────────────────────────────────────────────── */
-const APPS_SCRIPT_URL = "YOUR_WEB_APP_URL_HERE"; // ← paste here
+const APPS_SCRIPT_URL = https://script.google.com/macros/s/AKfycbzebvDV7owDASWSXwo_GN6WkACaCnSg_UPaltDumR78KXfTUtX0MRQvvnsmz3WgAbxYMQ/exec // ← paste here
 const TIMEZONE        = "America/New_York";
 const REFRESH_MS      = 30_000; // auto-refresh every 30s
 
