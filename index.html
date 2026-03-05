@@ -33,4 +33,150 @@
 </div>
 
 <div id="manual-overlay" class="overlay hidden" role="dialog" aria-modal="true">
-  <div c
+  <div class="manual-card">
+    <div class="manual-header">
+      <div>
+        <h2 class="manual-title">MANUAL TIME ENTRY</h2>
+        <p class="manual-sub">Admin adjustment · Times saved directly to Google Sheet</p>
+      </div>
+      <button class="manual-close" id="manual-close">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Employee</label>
+        <select class="form-control" id="manual-emp">
+          <option value="">— Select Employee —</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input class="form-control" type="date" id="manual-date" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Clock In</label>
+        <input class="form-control" type="time" id="manual-in" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Clock Out</label>
+        <input class="form-control" type="time" id="manual-out" />
+      </div>
+    </div>
+    <p class="form-note">
+      ⚡ Apps Script recalculates late/early minutes, hours, and row color automatically.<br>
+      Leave Clock Out blank if the employee is still on shift.
+    </p>
+    <div id="manual-result" class="manual-result hidden"></div>
+    <div class="manual-actions">
+      <button class="btn-save" id="btn-manual-save">SAVE ENTRY</button>
+      <button class="btn-cancel-manual" id="btn-manual-cancel">CANCEL</button>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <header id="hdr">
+    <div class="hdr-inner">
+      <div class="brand">
+        <img id="logo-img" src="assets/logo.png" alt="Tarpon Boatworks" class="logo-img"
+             style="display:none"
+             onload="this.style.display='block'; document.getElementById('logo-svg').style.display='none';"
+             onerror="this.style.display='none';" />
+        <svg id="logo-svg" width="44" height="44" viewBox="0 0 80 80" fill="none">
+          <ellipse cx="38" cy="44" rx="26" ry="11" stroke="#38C8D8" stroke-width="2.5" fill="none"/>
+          <path d="M64 44C72 38 74 28 68 22 C62 30 60 38 64 44Z" fill="#38C8D8" opacity=".85"/>
+          <path d="M12 44C8 38 6 32 10 26" stroke="#38C8D8" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          <circle cx="58" cy="40" r="2" fill="#38C8D8"/>
+          <path d="M38 32L36 22L42 27Z" fill="#38C8D8" opacity=".7"/>
+        </svg>
+        <div class="brand-text">
+          <span class="brand-name" id="company-name">TARPON BOATWORKS</span>
+          <span class="brand-sub">Employee Time Clock</span>
+        </div>
+      </div>
+      <div class="hdr-center">
+        <div class="live-time" id="live-time">—</div>
+        <div class="live-date" id="live-date">—</div>
+      </div>
+      <div class="hdr-right">
+        <div class="shift-info">
+          <span class="shift-label">SHIFT</span>
+          <span class="shift-times" id="shift-display">7:00 AM – 4:30 PM</span>
+        </div>
+        <button class="btn-admin" id="btn-admin" title="Admin: Manual Time Entry">
+          ✎ ADMIN
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="panel panel-clock" id="panel-clock">
+      <h2 class="panel-title">CLOCK IN / OUT</h2>
+      <div class="emp-selector-wrap" id="emp-selector-wrap">
+        <div class="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input class="emp-search" id="emp-search" type="text" autocomplete="off"
+                 placeholder="Search or tap employee name…" />
+        </div>
+        <ul class="emp-list" id="emp-list" role="listbox"></ul>
+      </div>
+      <div id="selected-display" class="selected-display hidden">
+        <div class="selected-inner">
+          <div class="selected-avatar" id="selected-avatar">?</div>
+          <span class="selected-name" id="selected-name">—</span>
+        </div>
+        <button class="clear-btn" id="clear-btn" aria-label="Clear selection">✕</button>
+      </div>
+      <div class="action-buttons">
+        <button class="btn-action btn-in" id="btn-in" disabled>
+          <span class="btn-icon">→</span>
+          <span class="btn-label">CLOCK IN</span>
+          <span class="btn-sub" id="shift-start-label">7:00 AM</span>
+        </button>
+        <button class="btn-action btn-out" id="btn-out" disabled>
+          <span class="btn-icon">←</span>
+          <span class="btn-label">CLOCK OUT</span>
+          <span class="btn-sub" id="shift-end-label">4:30 PM</span>
+        </button>
+      </div>
+      <div id="status-msg" class="status-msg hidden"></div>
+      <div class="refresh-note">
+        <span class="pulse-dot"></span>
+        <span id="refresh-label">Loading…</span>
+      </div>
+    </section>
+
+    <section class="panel panel-today" id="panel-today">
+      <div class="today-header">
+        <h2 class="panel-title">TODAY'S ROSTER</h2>
+        <span class="today-date" id="today-date-label">—</span>
+      </div>
+      <div class="table-scroll">
+        <table class="roster-table" id="roster-table">
+          <thead>
+            <tr>
+              <th class="th-name">Employee</th>
+              <th class="th-time">Clock In</th>
+              <th class="th-time">Clock Out</th>
+              <th class="th-delta">Δ</th>
+              <th class="th-status">Status</th>
+            </tr>
+          </thead>
+          <tbody id="today-tbody">
+            <tr><td colspan="5" class="loading-cell">Loading roster…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="leaders-strip" id="leaders-strip">
+        <div class="leaders-strip-title">THIS WEEK'S ON-TIME LEADERS</div>
+        <div class="leaders-row" id="leaders-row">
+          <span class="leader-placeholder">Loading…</span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
