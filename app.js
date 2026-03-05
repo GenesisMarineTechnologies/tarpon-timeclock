@@ -1,514 +1,502 @@
-/**
- * Tarpon Boatworks Time Clock — app.js  v3
- * =========================================
- * Paste your Apps Script Web App URL into APPS_SCRIPT_URL below.
+/*
+ * Tarpon Boatworks Time Clock — app.js
+ * =====================================
+ * STEP 1: Replace the URL below with your Apps Script Web App URL
+ * STEP 2: Upload this file to GitHub
  */
 
-/* ── CONFIG ──────────────────────────────────────────────── */
-const APPS_SCRIPT_URL = https://script.google.com/macros/s/AKfycbzebvDV7owDASWSXwo_GN6WkACaCnSg_UPaltDumR78KXfTUtX0MRQvvnsmz3WgAbxYMQ/exec ; // ← paste here
-const TIMEZONE        = "America/New_York";
-const REFRESH_MS      = 30000; // auto-refresh every 30s
+var APPS_SCRIPT_URL = https://script.google.com/macros/s/AKfycbzebvDV7owDASWSXwo_GN6WkACaCnSg_UPaltDumR78KXfTUtX0MRQvvnsmz3WgAbxYMQ/exec;
+var TIMEZONE = "America/New_York";
 
-/* ── STATE ───────────────────────────────────────────────── */
-let employees        = [];
-let selectedEmployee = null;   // { employeeId, displayName, role }
-let pendingAction    = null;   // { action: string, snap: employee snapshot }
-let refreshTimer     = null;
-let requestInFlight  = false;
-let config           = { shiftStartTime: "07:00", shiftEndTime: "16:30", companyName: "Tarpon Boatworks" };
-
-/* ── DOM ─────────────────────────────────────────────────── */
-const $ = id => document.getElementById(id);
-
-// Header
-const liveTimeEl      = $("live-time");
-const liveDateEl      = $("live-date");
-const companyNameEl   = $("company-name");
-const shiftDisplayEl  = $("shift-display");
-const shiftStartLbl   = $("shift-start-label");
-const shiftEndLbl     = $("shift-end-label");
-const logoImg         = $("logo-img");
-const offlineBanner   = $("offline-banner");
-const refreshLabel    = $("refresh-label");
-
-// Clock panel
-const empSearch       = $("emp-search");
-const empListEl       = $("emp-list");
-const empSelectorWrap = $("emp-selector-wrap");
-const selectedDisplay = $("selected-display");
-const selectedNameEl  = $("selected-name");
-const selectedAvatar  = $("selected-avatar");
-const clearBtn        = $("clear-btn");
-const btnIn           = $("btn-in");
-const btnOut          = $("btn-out");
-const statusMsg       = $("status-msg");
-
-// Confirm modal
-const confirmOverlay      = $("confirm-overlay");
-const confirmActionLabel  = $("confirm-action-label");
-const confirmNameEl       = $("confirm-name");
-const confirmYesBtn       = $("confirm-yes");
-const confirmNoBtn        = $("confirm-no");
-
-// Today
-const todayTbody        = $("today-tbody");
-const todayDateLabel    = $("today-date-label");
-const leadersRow        = $("leaders-row");
-
-// Manual entry
-const manualOverlay     = $("manual-overlay");
-const manualEmpSelect   = $("manual-emp");
-const manualDateInput   = $("manual-date");
-const manualInInput     = $("manual-in");
-const manualOutInput    = $("manual-out");
-const manualResultEl    = $("manual-result");
-const btnManualSave     = $("btn-manual-save");
-const btnManualCancel   = $("btn-manual-cancel");
-const manualClose       = $("manual-close");
-
-/* ── CLOCK ───────────────────────────────────────────────── */
+/* ── CLOCK — runs immediately, no API needed ────────────── */
 function updateClock() {
-  const now = new Date();
-  liveTimeEl.textContent = now.toLocaleTimeString("en-US", {
-    hour: "numeric", minute: "2-digit", second: "2-digit",
-    hour12: true, timeZone: TIMEZONE
-  });
-  liveDateEl.textContent = now.toLocaleDateString("en-US", {
-    weekday: "long", year: "numeric", month: "long", day: "numeric",
-    timeZone: TIMEZONE
-  });
+  try {
+    var now = new Date();
+    document.getElementById("live-time").textContent = now.toLocaleTimeString("en-US", {
+      hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true, timeZone: TIMEZONE
+    });
+    document.getElementById("live-date").textContent = now.toLocaleDateString("en-US", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: TIMEZONE
+    });
+    document.getElementById("today-date-label").textContent = now.toLocaleDateString("en-US", {
+      weekday: "short", month: "short", day: "numeric", timeZone: TIMEZONE
+    });
+  } catch (e) {}
 }
 setInterval(updateClock, 1000);
 updateClock();
 
-/* ── UTILITIES ───────────────────────────────────────────── */
+/* ── STATE ──────────────────────────────────────────────── */
+var employees = [];
+var selectedEmployee = null;
+var pendingAction = null;
+var requestInFlight = false;
+
+/* ── WAIT FOR DOM ───────────────────────────────────────── */
+document.addEventListener("DOMContentLoaded", function () {
+  if (APPS_SCRIPT_URL === https://script.google.com/macros/s/AKfycbzebvDV7owDASWSXwo_GN6WkACaCnSg_UPaltDumR78KXfTUtX0MRQvvnsmz3WgAbxYMQ/exec) {
+    showStatus("Apps Script URL not set — open app.js on GitHub and paste your URL on line 8", "error");
+    document.getElementById("refresh-label").textContent = "Not connected — URL missing";
+    return;
+  }
+  init();
+});
+
+/* ── HELPERS ────────────────────────────────────────────── */
 function todayStr() {
   return new Date().toLocaleDateString("en-CA", { timeZone: TIMEZONE });
 }
 
-function fmtHHMM(shiftTime) {
-  // Convert "07:00" → "7:00 AM"
-  const [h, m] = shiftTime.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12  = h > 12 ? h - 12 : h === 0 ? 12 : h;
-  return `${h12}:${String(m).padStart(2,"0")} ${ampm}`;
+function fmt12(t) {
+  var parts = t.split(":");
+  var h = parseInt(parts[0]);
+  var m = parts[1];
+  var ampm = h >= 12 ? "PM" : "AM";
+  var h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+  return h12 + ":" + m + " " + ampm;
 }
 
 function initials(name) {
-  return (name || "?").split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase();
+  if (!name) return "?";
+  var words = name.split(" ");
+  var out = "";
+  for (var i = 0; i < words.length; i++) {
+    if (words[i] && words[i][0]) out += words[i][0];
+  }
+  return out.slice(0, 2).toUpperCase();
 }
 
 function getStatusCode(lateMin) {
-  if (lateMin === null || lateMin === undefined) return "none";
-  if (lateMin <= 0) return "green";
+  lateMin = parseInt(lateMin);
+  if (isNaN(lateMin) || lateMin <= 0) return "green";
   if (lateMin === 1) return "yellow";
-  if (lateMin <= 4) return "orange";
+  if (lateMin <= 4)  return "orange";
   return "red";
 }
 
-function deltaLabel(late, early) {
-  if (late === null || late === undefined) return "—";
-  if (late > 0)  return `+${late}m`;
-  if (early > 0) return `-${early}m`;
-  return "0";
-}
-
-function pillHTML(statusCode, lateMin, earlyMin, statusText) {
-  if (!statusCode || statusCode === "none") {
-    return `<span class="pill pill-none"><span class="pill-dot dot-none"></span>Not In</span>`;
+/* ── API ────────────────────────────────────────────────── */
+function apiGet(route, params, callback) {
+  var qs = "route=" + encodeURIComponent(route);
+  if (params) {
+    var keys = Object.keys(params);
+    for (var i = 0; i < keys.length; i++) {
+      qs += "&" + encodeURIComponent(keys[i]) + "=" + encodeURIComponent(params[keys[i]]);
+    }
   }
-  const labels = { green:"On Time", yellow:"1 min", orange:`+${lateMin}m late`, red:`+${lateMin}m late` };
-  const label  = statusText || labels[statusCode] || statusCode;
-  // Derive code from statusText if needed
-  const code = statusCode.toLowerCase();
-  return `<span class="pill pill-${code}"><span class="pill-dot dot-${code}"></span>${label}</span>`;
+  fetch(APPS_SCRIPT_URL + "?" + qs)
+    .then(function (r) { return r.json(); })
+    .then(function (d) { callback(null, d); })
+    .catch(function (e) { callback(e, null); });
 }
 
-/* ── API ─────────────────────────────────────────────────── */
-async function apiGet(route, params = {}) {
-  const qs = new URLSearchParams({ route, ...params }).toString();
-  const r  = await fetch(`${APPS_SCRIPT_URL}?${qs}`, { method: "GET" });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  return r.json();
-}
-
-async function apiPost(route, body = {}) {
-  const r = await fetch(APPS_SCRIPT_URL, {
+function apiPost(route, body, callback) {
+  body.route = route;
+  fetch(APPS_SCRIPT_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ route, ...body })
+    body: JSON.stringify(body)
+  })
+    .then(function (r) { return r.json(); })
+    .then(function (d) { callback(null, d); })
+    .catch(function (e) { callback(e, null); });
+}
+
+/* ── INIT ───────────────────────────────────────────────── */
+function init() {
+  loadConfig();
+  loadEmployees();
+  loadDashboard();
+  loadLeaders();
+  setInterval(function () {
+    loadDashboard();
+    loadLeaders();
+  }, 30000);
+}
+
+/* ── CONFIG ─────────────────────────────────────────────── */
+function loadConfig() {
+  apiGet("config", {}, function (err, data) {
+    if (err || !data || !data.ok) return;
+    if (data.companyName) {
+      document.getElementById("company-name").textContent = data.companyName;
+    }
+    if (data.shiftStartTime && data.shiftEndTime) {
+      var s = fmt12(data.shiftStartTime);
+      var e = fmt12(data.shiftEndTime);
+      document.getElementById("shift-display").textContent = s + " \u2013 " + e;
+      document.getElementById("shift-start-label").textContent = s;
+      document.getElementById("shift-end-label").textContent = e;
+    }
+    if (data.logoUrl) {
+      var img = document.getElementById("logo-img");
+      img.src = data.logoUrl;
+      img.style.display = "block";
+      document.getElementById("logo-svg").style.display = "none";
+    }
   });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  return r.json();
 }
 
-function setOffline(offline) {
-  offlineBanner.classList.toggle("hidden", !offline);
-}
-
-/* ── CONFIG LOAD ─────────────────────────────────────────── */
-async function loadConfig() {
-  try {
-    const data = await apiGet("config");
-    if (data.ok) {
-      config = { ...config, ...data };
-      // Apply to UI
-      if (data.companyName) companyNameEl.textContent = data.companyName;
-      if (data.logoUrl) { logoImg.src = data.logoUrl; logoImg.style.display = ""; }
-      const startFmt = fmtHHMM(data.shiftStartTime || "07:00");
-      const endFmt   = fmtHHMM(data.shiftEndTime   || "16:30");
-      shiftDisplayEl.textContent = `${startFmt} – ${endFmt}`;
-      shiftStartLbl.textContent  = startFmt;
-      shiftEndLbl.textContent    = endFmt;
+/* ── EMPLOYEES ──────────────────────────────────────────── */
+function loadEmployees() {
+  document.getElementById("refresh-label").textContent = "Loading employees...";
+  apiGet("employees", {}, function (err, data) {
+    if (err || !data || !data.ok) {
+      document.getElementById("refresh-label").textContent = "Could not connect to Google Sheet";
+      showStatus("Cannot reach server — check your Apps Script URL is correct and deployed", "error");
+      return;
     }
-  } catch (_) {}
+    employees = data.employees || [];
+    renderEmployeeList(employees);
+    populateManualSelect(employees);
+    var t = new Date().toLocaleTimeString("en-US", {
+      hour: "numeric", minute: "2-digit", hour12: true, timeZone: TIMEZONE
+    });
+    document.getElementById("refresh-label").textContent = "Connected \u00b7 Updated " + t;
+  });
 }
 
-/* ── EMPLOYEES ───────────────────────────────────────────── */
-async function loadEmployees() {
-  try {
-    const data = await apiGet("employees");
-    if (data.ok) {
-      employees = (data.employees || []);
-      renderDropdown(employees);
-      populateManualEmpSelect(employees);
-      setOffline(false);
-    }
-  } catch (_) { setOffline(true); }
-}
-
-function renderDropdown(list) {
-  if (!list.length) {
-    empListEl.innerHTML = `<li style="pointer-events:none;color:var(--text-3);padding:16px;font-style:italic">No employees found</li>`;
+function renderEmployeeList(list) {
+  var el = document.getElementById("emp-list");
+  if (!list || !list.length) {
+    el.innerHTML = "<li style='pointer-events:none;color:#4a7a95;padding:16px;font-style:italic'>No employees found</li>";
     return;
   }
-  empListEl.innerHTML = list.map(e => `
-    <li data-id="${e.employeeId}" data-name="${e.displayName}" data-role="${e.role||""}">
-      <div class="emp-avatar-sm">${initials(e.displayName)}</div>
-      ${e.displayName}
-      ${e.role ? `<span class="emp-role">${e.role}</span>` : ""}
-    </li>`
-  ).join("");
-
-  empListEl.querySelectorAll("li[data-id]").forEach(li =>
-    li.addEventListener("click", () =>
-      selectEmployee(li.dataset.id, li.dataset.name, li.dataset.role)
-    )
-  );
+  var html = "";
+  for (var i = 0; i < list.length; i++) {
+    var e = list[i];
+    html += "<li data-id='" + e.employeeId + "' data-name='" + e.displayName + "' data-role='" + (e.role || "") + "'>";
+    html += "<div class='emp-avatar-sm'>" + initials(e.displayName) + "</div>";
+    html += e.displayName;
+    if (e.role) html += "<span class='emp-role'>" + e.role + "</span>";
+    html += "</li>";
+  }
+  el.innerHTML = html;
+  var items = el.querySelectorAll("li[data-id]");
+  for (var j = 0; j < items.length; j++) {
+    (function (li) {
+      li.addEventListener("click", function () {
+        selectEmployee(
+          li.getAttribute("data-id"),
+          li.getAttribute("data-name"),
+          li.getAttribute("data-role")
+        );
+      });
+    })(items[j]);
+  }
 }
 
-function populateManualEmpSelect(list) {
-  manualEmpSelect.innerHTML = `<option value="">— Select Employee —</option>` +
-    list.map(e => `<option value="${e.employeeId}">${e.displayName}</option>`).join("");
+function populateManualSelect(list) {
+  var sel = document.getElementById("manual-emp");
+  sel.innerHTML = "<option value=''>-- Select Employee --</option>";
+  for (var i = 0; i < list.length; i++) {
+    sel.innerHTML += "<option value='" + list[i].employeeId + "'>" + list[i].displayName + "</option>";
+  }
 }
 
-empSearch.addEventListener("focus", () => {
-  renderDropdown(employees);
-  empListEl.classList.add("open");
-});
-empSearch.addEventListener("input", () => {
-  const q = empSearch.value.toLowerCase().trim();
-  const filtered = q ? employees.filter(e => e.displayName.toLowerCase().includes(q)) : employees;
-  renderDropdown(filtered);
-  empListEl.classList.add("open");
-});
-document.addEventListener("click", e => {
-  if (!e.target.closest("#emp-selector-wrap")) empListEl.classList.remove("open");
+/* Employee search */
+document.getElementById("emp-search").addEventListener("focus", function () {
+  renderEmployeeList(employees);
+  document.getElementById("emp-list").classList.add("open");
 });
 
+document.getElementById("emp-search").addEventListener("input", function () {
+  var q = this.value.toLowerCase();
+  var filtered = [];
+  for (var i = 0; i < employees.length; i++) {
+    if (employees[i].displayName.toLowerCase().indexOf(q) >= 0) filtered.push(employees[i]);
+  }
+  renderEmployeeList(filtered);
+  document.getElementById("emp-list").classList.add("open");
+});
+
+document.addEventListener("click", function (e) {
+  if (!e.target.closest("#emp-selector-wrap")) {
+    document.getElementById("emp-list").classList.remove("open");
+  }
+});
+
+/* ── SELECT / CLEAR ─────────────────────────────────────── */
 function selectEmployee(id, name, role) {
-  // Snapshot into state
   selectedEmployee = { employeeId: id, displayName: name, role: role || "" };
-  empSearch.value  = "";
-  empListEl.classList.remove("open");
-  selectedNameEl.textContent    = name;
-  selectedAvatar.textContent    = initials(name);
-  selectedDisplay.classList.remove("hidden");
-  btnIn.disabled  = false;
-  btnOut.disabled = false;
+  document.getElementById("emp-search").value = "";
+  document.getElementById("emp-list").classList.remove("open");
+  document.getElementById("selected-name").textContent = name;
+  document.getElementById("selected-avatar").textContent = initials(name);
+  document.getElementById("selected-display").classList.remove("hidden");
+  document.getElementById("btn-in").disabled = false;
+  document.getElementById("btn-out").disabled = false;
   clearStatus();
 }
 
-clearBtn.addEventListener("click", clearSelection);
+document.getElementById("clear-btn").addEventListener("click", function () {
+  clearSelection();
+});
+
 function clearSelection() {
   selectedEmployee = null;
-  selectedDisplay.classList.add("hidden");
-  btnIn.disabled  = true;
-  btnOut.disabled = true;
-  empSearch.value = "";
+  document.getElementById("selected-display").classList.add("hidden");
+  document.getElementById("btn-in").disabled = true;
+  document.getElementById("btn-out").disabled = true;
+  document.getElementById("emp-search").value = "";
   clearStatus();
 }
 
-/* ── CONFIRM MODAL ───────────────────────────────────────── */
-btnIn.addEventListener("click",  () => openConfirm("clock-in"));
-btnOut.addEventListener("click", () => openConfirm("clock-out"));
+/* ── CONFIRM MODAL ──────────────────────────────────────── */
+document.getElementById("btn-in").addEventListener("click", function () {
+  openConfirm("clock-in");
+});
+document.getElementById("btn-out").addEventListener("click", function () {
+  openConfirm("clock-out");
+});
 
 function openConfirm(action) {
   if (!selectedEmployee || requestInFlight) return;
-  // Snapshot employee at the moment the button is pressed
-  const snap = { ...selectedEmployee };
-  pendingAction = { action, snap };
-  confirmActionLabel.textContent = action === "clock-in" ? "CLOCK IN" : "CLOCK OUT";
-  confirmNameEl.textContent      = snap.displayName; // always from snapshot
-  confirmOverlay.classList.remove("hidden");
+  var snap = { employeeId: selectedEmployee.employeeId, displayName: selectedEmployee.displayName };
+  pendingAction = { action: action, snap: snap };
+  document.getElementById("confirm-action-label").textContent = action === "clock-in" ? "CLOCK IN" : "CLOCK OUT";
+  document.getElementById("confirm-name").textContent = snap.displayName;
+  document.getElementById("confirm-overlay").classList.remove("hidden");
 }
 
-confirmYesBtn.addEventListener("click", async () => {
-  confirmOverlay.classList.add("hidden");
+document.getElementById("confirm-yes").addEventListener("click", function () {
+  document.getElementById("confirm-overlay").classList.add("hidden");
   if (!pendingAction) return;
-  const { action, snap } = pendingAction;
+  var action = pendingAction.action;
+  var snap   = pendingAction.snap;
   pendingAction = null;
-  // Safety check: selected employee must still match
   if (!selectedEmployee || selectedEmployee.employeeId !== snap.employeeId) {
-    showStatus("✗ Selection changed — please try again.", "error");
+    showStatus("Selection changed — please try again.", "error");
     return;
   }
-  await doClockAction(action, snap);
+  doClockAction(action, snap);
 });
 
-confirmNoBtn.addEventListener("click", () => {
-  confirmOverlay.classList.add("hidden");
+document.getElementById("confirm-no").addEventListener("click", function () {
+  document.getElementById("confirm-overlay").classList.add("hidden");
   pendingAction = null;
   clearSelection();
 });
 
-confirmOverlay.addEventListener("click", e => {
-  if (e.target === confirmOverlay) {
-    confirmOverlay.classList.add("hidden");
-    pendingAction = null;
-  }
-});
-
-/* ── CLOCK ACTION ────────────────────────────────────────── */
-async function doClockAction(action, emp) {
+/* ── CLOCK ACTION ───────────────────────────────────────── */
+function doClockAction(action, emp) {
   requestInFlight = true;
-  setButtonsLoading(true);
+  document.getElementById("btn-in").disabled  = true;
+  document.getElementById("btn-out").disabled = true;
+  document.getElementById("btn-in").querySelector(".btn-label").textContent  = "...";
+  document.getElementById("btn-out").querySelector(".btn-label").textContent = "...";
   clearStatus();
 
-  try {
-    const res = await apiPost(action, { employeeId: emp.employeeId });
+  apiPost(action, { employeeId: emp.employeeId }, function (err, res) {
+    requestInFlight = false;
+    document.getElementById("btn-in").querySelector(".btn-label").textContent  = "CLOCK IN";
+    document.getElementById("btn-out").querySelector(".btn-label").textContent = "CLOCK OUT";
+
+    if (err || !res) {
+      showStatus("Cannot reach server. Check Wi-Fi.", "error");
+      if (selectedEmployee) {
+        document.getElementById("btn-in").disabled  = false;
+        document.getElementById("btn-out").disabled = false;
+      }
+      return;
+    }
 
     if (res.ok) {
-      const verb = action === "clock-in" ? "clocked in" : "clocked out";
-      const d    = res.data || {};
-      const time = d.displayTime || "";
-      const late = d.lateMinutes;
-      let extra  = "";
+      var d     = res.data || {};
+      var verb  = action === "clock-in" ? "clocked in" : "clocked out";
+      var time  = d.displayTime || "";
+      var extra = "";
       if (action === "clock-in") {
-        if (late === 0)  extra = " — On Time";
-        else if (late > 0) extra = " — " + late + " min late";
-        else if (d.earlyMinutes > 0) extra = " — " + d.earlyMinutes + " min early";
+        var late  = parseInt(d.lateMinutes)  || 0;
+        var early = parseInt(d.earlyMinutes) || 0;
+        if (late > 0)       extra = " \u2014 " + late + " min late";
+        else if (early > 0) extra = " \u2014 " + early + " min early";
+        else                extra = " \u2014 On Time";
       }
-      showStatus(`✓ ${emp.displayName} ${verb} at ${time}${extra}`, "success");
-      await refreshDashboard();
-      setTimeout(() => {
-        if (statusMsg.classList.contains("success")) clearSelection();
-      }, 5000);
+      showStatus(emp.displayName + " " + verb + " at " + time + extra, "success");
+      loadDashboard();
+      loadLeaders();
+      setTimeout(function () { clearSelection(); }, 4000);
     } else {
-      showStatus(`✗ ${res.error || "Action failed. Please try again."}`, "error");
+      showStatus(res.error || "Action failed. Please try again.", "error");
+      if (selectedEmployee) {
+        document.getElementById("btn-in").disabled  = false;
+        document.getElementById("btn-out").disabled = false;
+      }
     }
-    setOffline(false);
-  } catch (_) {
-    showStatus("✗ Cannot reach server. Check your connection.", "error");
-    setOffline(true);
-  }
-
-  requestInFlight = false;
-  setButtonsLoading(false);
-  if (selectedEmployee) { btnIn.disabled = false; btnOut.disabled = false; }
+  });
 }
 
-function setButtonsLoading(on) {
-  btnIn.disabled  = on;
-  btnOut.disabled = on;
-  if (on) {
-    btnIn.querySelector(".btn-label").innerHTML  = `<span class="btn-spinner"></span>`;
-    btnOut.querySelector(".btn-label").innerHTML = `<span class="btn-spinner"></span>`;
-  } else {
-    btnIn.querySelector(".btn-label").textContent  = "CLOCK IN";
-    btnOut.querySelector(".btn-label").textContent = "CLOCK OUT";
-  }
-}
-
+/* ── STATUS MESSAGE ─────────────────────────────────────── */
 function showStatus(msg, type) {
-  statusMsg.textContent = msg;
-  statusMsg.className   = `status-msg ${type}`;
+  var el = document.getElementById("status-msg");
+  el.textContent = msg;
+  el.className = "status-msg " + type;
 }
 function clearStatus() {
-  statusMsg.className   = "status-msg hidden";
-  statusMsg.textContent = "";
+  var el = document.getElementById("status-msg");
+  el.textContent = "";
+  el.className = "status-msg hidden";
 }
 
-/* ── TODAY ROSTER ────────────────────────────────────────── */
-async function loadTodayRoster() {
-  try {
-    const data = await apiGet("dashboard", { date: todayStr() });
-    if (data.ok) renderRoster(data.rows || []);
-    setOffline(false);
-  } catch (_) { setOffline(true); }
+/* ── TODAY'S ROSTER ─────────────────────────────────────── */
+function loadDashboard() {
+  apiGet("dashboard", { date: todayStr() }, function (err, data) {
+    if (err || !data || !data.ok) {
+      document.getElementById("today-tbody").innerHTML =
+        "<tr><td colspan='5' class='loading-cell'>Could not load roster</td></tr>";
+      return;
+    }
+    renderRoster(data.rows || []);
+  });
 }
 
 function renderRoster(rows) {
-  todayDateLabel.textContent = new Date().toLocaleDateString("en-US", {
-    weekday: "short", month: "short", day: "numeric", timeZone: TIMEZONE
-  });
-
-  if (!rows.length) {
-    todayTbody.innerHTML = `<tr><td colspan="5" class="empty-cell">No employees found</td></tr>`;
+  if (!rows || !rows.length) {
+    document.getElementById("today-tbody").innerHTML =
+      "<tr><td colspan='5' class='empty-cell'>No punches yet today</td></tr>";
     return;
   }
+  var html = "";
+  for (var i = 0; i < rows.length; i++) {
+    var r     = rows[i];
+    var hasIn = !!r.clockInDisplay;
+    var late  = parseInt(r.lateMinutes)  || 0;
+    var early = parseInt(r.earlyMinutes) || 0;
+    var code  = hasIn ? getStatusCode(late) : "none";
 
-  todayTbody.innerHTML = rows.map(r => {
-    const hasIn  = !!r.clockInDisplay;
-    const late   = r.lateMinutes;
-    const early  = r.earlyMinutes;
-    const code   = (r.statusCode ? r.statusCode.toLowerCase() : "") || "none";
-    const delta  = hasIn ? deltaLabel(late, early) : "—";
-    const dColor = code === "green" ? "var(--green)"
-      : code === "yellow" ? "var(--yellow)"
-      : code === "orange" ? "var(--orange)"
-      : code === "red"    ? "var(--red)" : "var(--text-3)";
+    var delta = "\u2014";
+    if (hasIn) {
+      if (late > 0)       delta = "+" + late + "m";
+      else if (early > 0) delta = "-" + early + "m";
+      else                delta = "0";
+    }
 
-    // Parse status text from sheet (like "⚠ +3 MIN" or "✓ ON TIME")
-    let pillCode = code;
-    const pill   = pillHTML(pillCode, late, early, r.statusText);
+    var dColor = code === "green"  ? "var(--green)"
+               : code === "yellow" ? "var(--yellow)"
+               : code === "orange" ? "var(--orange)"
+               : code === "red"    ? "var(--red)" : "var(--text-3)";
 
-    return `<tr>
-      <td class="td-name">${r.displayName}</td>
-      <td class="td-time">${r.clockInDisplay  || "—"}</td>
-      <td class="td-time">${r.clockOutDisplay || "—"}</td>
-      <td class="td-delta" style="color:${dColor}">${delta}</td>
-      <td class="td-status">${pill}</td>
-    </tr>`;
-  }).join("");
+    var pillLabel = !hasIn ? "Not In"
+      : code === "green"  ? "On Time"
+      : code === "yellow" ? "1 min late"
+      : late + "m late";
+
+    html += "<tr>";
+    html += "<td class='td-name'>" + r.displayName + "</td>";
+    html += "<td class='td-time'>" + (r.clockInDisplay  || "\u2014") + "</td>";
+    html += "<td class='td-time'>" + (r.clockOutDisplay || "\u2014") + "</td>";
+    html += "<td class='td-delta' style='color:" + dColor + "'>" + delta + "</td>";
+    html += "<td><span class='pill pill-" + code + "'><span class='pill-dot dot-" + code + "'></span>" + pillLabel + "</span></td>";
+    html += "</tr>";
+  }
+  document.getElementById("today-tbody").innerHTML = html;
 }
 
-/* ── LEADERS STRIP ───────────────────────────────────────── */
-async function loadLeaders() {
-  try {
-    const data = await apiGet("stats");
-    if (!data.ok) return;
-    const list = data.weekLeaders || [];
+/* ── LEADERS ────────────────────────────────────────────── */
+function loadLeaders() {
+  apiGet("stats", {}, function (err, data) {
+    if (err || !data || !data.ok) return;
+    var list = data.weekLeaders || [];
     if (!list.length) {
-      leadersRow.innerHTML = `<span class="leader-placeholder">No data yet this week</span>`;
+      document.getElementById("leaders-row").innerHTML =
+        "<span class='leader-placeholder'>No data yet this week</span>";
       return;
     }
-    const medals = ["🥇","🥈","🥉"];
-    leadersRow.innerHTML = list.map((l,i) => `
-      <div class="leader-chip">
-        <span class="leader-medal">${medals[i]||""}</span>
-        <span class="leader-name">${l.displayName}</span>
-        <span class="leader-pct">${l.onTimePercent}%</span>
-      </div>
-    `).join("");
-  } catch (_) {}
-}
-
-/* ── FULL REFRESH ────────────────────────────────────────── */
-async function refreshDashboard() {
-  await Promise.all([loadTodayRoster(), loadLeaders()]);
-  const t = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric", minute: "2-digit", hour12: true, timeZone: TIMEZONE
+    var medals = ["\uD83E\uDD47", "\uD83E\uDD48", "\uD83E\uDD49"];
+    var html = "";
+    for (var i = 0; i < list.length; i++) {
+      html += "<div class='leader-chip'>";
+      html += "<span class='leader-medal'>" + (medals[i] || "") + "</span>";
+      html += "<span class='leader-name'>" + list[i].displayName + "</span>";
+      html += "<span class='leader-pct'>" + list[i].onTimePercent + "%</span>";
+      html += "</div>";
+    }
+    document.getElementById("leaders-row").innerHTML = html;
   });
-  refreshLabel.textContent = `Updated ${t} · refreshes every 30s`;
 }
 
-function startAutoRefresh() {
-  if (refreshTimer) clearInterval(refreshTimer);
-  refreshTimer = setInterval(refreshDashboard, REFRESH_MS);
-}
-
-/* ── MANUAL ENTRY ────────────────────────────────────────── */
-$("btn-admin").addEventListener("click", openManual);
+/* ── MANUAL ENTRY ───────────────────────────────────────── */
+document.getElementById("btn-admin").addEventListener("click", function () {
+  var pin = prompt("Enter admin PIN:");
+  if (pin !== "1234") { alert("Incorrect PIN."); return; }
+  openManual();
+});
 
 function openManual() {
-  const today = new Date().toLocaleDateString("en-CA", { timeZone: TIMEZONE });
-  manualDateInput.value = today;
-  manualInInput.value   = "";
-  manualOutInput.value  = "";
-  manualEmpSelect.value = "";
-  manualResultEl.className = "manual-result hidden";
-  manualResultEl.textContent = "";
-  manualOverlay.classList.remove("hidden");
+  var today = new Date().toLocaleDateString("en-CA", { timeZone: TIMEZONE });
+  document.getElementById("manual-date").value = today;
+  document.getElementById("manual-in").value   = "";
+  document.getElementById("manual-out").value  = "";
+  document.getElementById("manual-emp").value  = "";
+  var resEl = document.getElementById("manual-result");
+  resEl.className = "manual-result hidden";
+  resEl.textContent = "";
+  document.getElementById("manual-overlay").classList.remove("hidden");
 }
 
-function closeManual() { manualOverlay.classList.add("hidden"); }
+function closeManual() {
+  document.getElementById("manual-overlay").classList.add("hidden");
+}
 
-manualClose.addEventListener("click", closeManual);
-btnManualCancel.addEventListener("click", closeManual);
-manualOverlay.addEventListener("click", e => {
-  if (e.target === manualOverlay) closeManual();
+document.getElementById("manual-close").addEventListener("click", closeManual);
+document.getElementById("btn-manual-cancel").addEventListener("click", closeManual);
+document.getElementById("manual-overlay").addEventListener("click", function (e) {
+  if (e.target === document.getElementById("manual-overlay")) closeManual();
 });
 
-btnManualSave.addEventListener("click", async () => {
-  const empId   = manualEmpSelect.value;
-  const date    = manualDateInput.value;
-  const cinRaw  = manualInInput.value;
-  const coutRaw = manualOutInput.value;
+document.getElementById("btn-manual-save").addEventListener("click", function () {
+  var empId   = document.getElementById("manual-emp").value;
+  var date    = document.getElementById("manual-date").value;
+  var cinRaw  = document.getElementById("manual-in").value;
+  var coutRaw = document.getElementById("manual-out").value;
+  var resEl   = document.getElementById("manual-result");
 
-  // Convert HH:MM (time input format) to "H:MM AM/PM"
   function toAmPm(hhmm) {
     if (!hhmm) return "";
-    const [h, m] = hhmm.split(":").map(Number);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const h12  = h > 12 ? h - 12 : h === 0 ? 12 : h;
-    return `${h12}:${String(m).padStart(2,"0")} ${ampm}`;
+    var parts = hhmm.split(":");
+    var h = parseInt(parts[0]);
+    var m = parts[1];
+    var ampm = h >= 12 ? "PM" : "AM";
+    var h12  = h > 12 ? h - 12 : h === 0 ? 12 : h;
+    return h12 + ":" + m + " " + ampm;
   }
 
-  const cin  = toAmPm(cinRaw);
-  const cout = toAmPm(coutRaw);
-
-  manualResultEl.className = "manual-result hidden";
+  var cin  = toAmPm(cinRaw);
+  var cout = toAmPm(coutRaw);
 
   if (!empId || !date) {
-    showManualResult("Please select an employee and date.", "error"); return;
+    resEl.textContent = "Please select an employee and date.";
+    resEl.className = "manual-result error"; return;
   }
   if (!cin && !cout) {
-    showManualResult("Enter at least a clock-in time.", "error"); return;
+    resEl.textContent = "Enter at least a clock-in time.";
+    resEl.className = "manual-result error"; return;
   }
   if (cin && cout && coutRaw <= cinRaw) {
-    showManualResult("Clock-out must be after clock-in.", "error"); return;
+    resEl.textContent = "Clock-out must be after clock-in.";
+    resEl.className = "manual-result error"; return;
   }
 
-  btnManualSave.textContent = "SAVING…";
-  btnManualSave.disabled    = true;
+  document.getElementById("btn-manual-save").textContent = "SAVING...";
+  document.getElementById("btn-manual-save").disabled = true;
 
-  try {
-    const res = await apiPost("manual-entry", {
-      employeeId: empId, date, clockIn: cin, clockOut: cout
-    });
-    if (res.ok) {
-      const selOpt = manualEmpSelect.selectedOptions[0];
-      const name   = (selOpt ? selOpt.text : "") || empId;
-      showManualResult(
-        `✓ Saved: ${name} on ${date}\n` +
-        `Clock In: ${cin || "—"}   Clock Out: ${cout || "—"}\n` +
-        `Status recalculated automatically on the Google Sheet.`,
-        "success"
-      );
-      await refreshDashboard();
-    } else {
-      showManualResult(`✗ ${res.error || "Save failed."}`, "error");
+  apiPost("manual-entry", { employeeId: empId, date: date, clockIn: cin, clockOut: cout }, function (err, res) {
+    document.getElementById("btn-manual-save").textContent = "SAVE ENTRY";
+    document.getElementById("btn-manual-save").disabled = false;
+
+    if (err || !res) {
+      resEl.textContent = "Cannot reach server.";
+      resEl.className = "manual-result error"; return;
     }
-  } catch (_) {
-    showManualResult("✗ Cannot reach server.", "error");
-  }
-
-  btnManualSave.textContent = "SAVE ENTRY";
-  btnManualSave.disabled    = false;
+    if (res.ok) {
+      var sel  = document.getElementById("manual-emp");
+      var name = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : empId;
+      resEl.textContent = "Saved: " + name + " on " + date + "  In: " + (cin || "\u2014") + "  Out: " + (cout || "\u2014");
+      resEl.className = "manual-result success";
+      loadDashboard();
+    } else {
+      resEl.textContent = res.error || "Save failed.";
+      resEl.className = "manual-result error";
+    }
+  });
 });
-
-function showManualResult(msg, type) {
-  manualResultEl.textContent = msg;
-  manualResultEl.className   = `manual-result ${type}`;
-}
-
-/* ── INIT ────────────────────────────────────────────────── */
-async function init() {
-  await loadConfig();
-  await loadEmployees();
-  await refreshDashboard();
-  startAutoRefresh();
-}
-
-init();
