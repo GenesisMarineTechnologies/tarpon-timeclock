@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="TB Time Clock" />
@@ -13,12 +14,10 @@
 </head>
 <body>
 
-<!-- OFFLINE BANNER -->
 <div id="offline-banner" class="offline-banner hidden">
   ⚠ No connection — check Wi-Fi
 </div>
 
-<!-- CONFIRM MODAL -->
 <div id="confirm-overlay" class="overlay hidden" role="dialog" aria-modal="true">
   <div class="confirm-card">
     <p class="confirm-sub">YOU ARE ABOUT TO</p>
@@ -28,176 +27,10 @@
     <p class="confirm-name" id="confirm-name">—</p>
     <div class="confirm-buttons">
       <button class="btn-confirm-yes" id="confirm-yes">YES, THAT'S ME</button>
-      <button class="btn-confirm-no"  id="confirm-no">NO, GO BACK</button>
+      <button class="btn-confirm-no" id="confirm-no">NO, GO BACK</button>
     </div>
   </div>
 </div>
 
-<!-- MANUAL ENTRY MODAL -->
 <div id="manual-overlay" class="overlay hidden" role="dialog" aria-modal="true">
-  <div class="manual-card">
-    <div class="manual-header">
-      <div>
-        <h2 class="manual-title">MANUAL TIME ENTRY</h2>
-        <p class="manual-sub">Admin adjustment · Times saved directly to Google Sheet</p>
-      </div>
-      <button class="manual-close" id="manual-close">✕</button>
-    </div>
-
-    <div class="form-grid">
-      <div class="form-group">
-        <label class="form-label">Employee</label>
-        <select class="form-control" id="manual-emp">
-          <option value="">— Select Employee —</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Date</label>
-        <input class="form-control" type="date" id="manual-date" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Clock In</label>
-        <input class="form-control" type="time" id="manual-in" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Clock Out</label>
-        <input class="form-control" type="time" id="manual-out" placeholder="Leave blank if still working" />
-      </div>
-    </div>
-
-    <p class="form-note">
-      ⚡ Apps Script auto-recalculates late/early minutes, hours, and status color on the Google Sheet.<br>
-      Leave Clock Out blank if the employee is still on shift.
-    </p>
-
-    <div id="manual-result" class="manual-result hidden"></div>
-
-    <div class="manual-actions">
-      <button class="btn-save" id="btn-manual-save">SAVE ENTRY</button>
-      <button class="btn-cancel-manual" id="btn-manual-cancel">CANCEL</button>
-    </div>
-  </div>
-</div>
-
-<!-- APP -->
-<div id="app">
-
-  <!-- HEADER -->
-  <header id="hdr">
-    <div class="hdr-inner">
-      <div class="brand">
-        <img id="logo-img" src="assets/logo.png" alt="" class="logo-img"
-             onerror="this.style.display='none'" />
-        <div class="brand-text">
-          <span class="brand-name" id="company-name">TARPON BOATWORKS</span>
-          <span class="brand-sub">Employee Time Clock</span>
-        </div>
-      </div>
-      <div class="hdr-center">
-        <div class="live-time" id="live-time">—</div>
-        <div class="live-date" id="live-date">—</div>
-      </div>
-      <div class="hdr-right">
-        <div class="shift-info">
-          <span class="shift-label">SHIFT</span>
-          <span class="shift-times" id="shift-display">7:00 AM – 4:30 PM</span>
-        </div>
-        <button class="btn-admin" id="btn-admin" title="Admin: Manual Time Entry">
-          ✎ ADMIN
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <!-- MAIN -->
-  <main id="main">
-
-    <!-- LEFT: CLOCK IN/OUT PANEL -->
-    <section class="panel panel-clock" id="panel-clock">
-      <h2 class="panel-title">CLOCK IN / OUT</h2>
-
-      <!-- Employee search -->
-      <div class="emp-selector-wrap" id="emp-selector-wrap">
-        <div class="search-wrap">
-          <span class="search-icon">⌕</span>
-          <input
-            class="emp-search" id="emp-search"
-            type="text" autocomplete="off"
-            placeholder="Search or tap employee name…"
-          />
-        </div>
-        <ul class="emp-list" id="emp-list" role="listbox"></ul>
-      </div>
-
-      <!-- Selected employee display -->
-      <div id="selected-display" class="selected-display hidden">
-        <div class="selected-inner">
-          <div class="selected-avatar" id="selected-avatar">?</div>
-          <span class="selected-name" id="selected-name">—</span>
-        </div>
-        <button class="clear-btn" id="clear-btn" aria-label="Clear selection">✕</button>
-      </div>
-
-      <!-- Action buttons -->
-      <div class="action-buttons">
-        <button class="btn-action btn-in" id="btn-in" disabled>
-          <span class="btn-icon">→</span>
-          <span class="btn-label">CLOCK IN</span>
-          <span class="btn-sub" id="shift-start-label">7:00 AM</span>
-        </button>
-        <button class="btn-action btn-out" id="btn-out" disabled>
-          <span class="btn-icon">←</span>
-          <span class="btn-label">CLOCK OUT</span>
-          <span class="btn-sub" id="shift-end-label">4:30 PM</span>
-        </button>
-      </div>
-
-      <!-- Status message -->
-      <div id="status-msg" class="status-msg hidden"></div>
-
-      <!-- Refresh indicator -->
-      <div class="refresh-note">
-        <span class="pulse-dot"></span>
-        <span id="refresh-label">Loading…</span>
-      </div>
-    </section>
-
-    <!-- RIGHT: TODAY'S ROSTER -->
-    <section class="panel panel-today" id="panel-today">
-      <div class="today-header">
-        <h2 class="panel-title">TODAY'S ROSTER</h2>
-        <span class="today-date" id="today-date-label">—</span>
-      </div>
-
-      <div class="table-scroll">
-        <table class="roster-table" id="roster-table">
-          <thead>
-            <tr>
-              <th class="th-name">Employee</th>
-              <th class="th-time">Clock In</th>
-              <th class="th-time">Clock Out</th>
-              <th class="th-delta">Δ</th>
-              <th class="th-status">Status</th>
-            </tr>
-          </thead>
-          <tbody id="today-tbody">
-            <tr><td colspan="5" class="loading-cell">Loading roster…</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Leaders strip -->
-      <div class="leaders-strip" id="leaders-strip">
-        <div class="leaders-strip-title">THIS WEEK'S ON-TIME LEADERS</div>
-        <div class="leaders-row" id="leaders-row">
-          <span class="leader-placeholder">Loading…</span>
-        </div>
-      </div>
-    </section>
-
-  </main>
-</div>
-
-<script src="app.js"></script>
-</body>
-</html>
+  <div c
