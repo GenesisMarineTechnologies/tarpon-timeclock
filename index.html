@@ -14,10 +14,12 @@
 </head>
 <body>
 
+<!-- OFFLINE BANNER -->
 <div id="offline-banner" class="offline-banner hidden">
   ⚠ No connection — check Wi-Fi
 </div>
 
+<!-- CONFIRM MODAL -->
 <div id="confirm-overlay" class="overlay hidden" role="dialog" aria-modal="true">
   <div class="confirm-card">
     <p class="confirm-sub">YOU ARE ABOUT TO</p>
@@ -27,11 +29,12 @@
     <p class="confirm-name" id="confirm-name">—</p>
     <div class="confirm-buttons">
       <button class="btn-confirm-yes" id="confirm-yes">YES, THAT'S ME</button>
-      <button class="btn-confirm-no" id="confirm-no">NO, GO BACK</button>
+      <button class="btn-confirm-no"  id="confirm-no">NO, GO BACK</button>
     </div>
   </div>
 </div>
 
+<!-- MANUAL ENTRY MODAL -->
 <div id="manual-overlay" class="overlay hidden" role="dialog" aria-modal="true">
   <div class="manual-card">
     <div class="manual-header">
@@ -58,11 +61,11 @@
       </div>
       <div class="form-group">
         <label class="form-label">Clock Out</label>
-        <input class="form-control" type="time" id="manual-out" />
+        <input class="form-control" type="time" id="manual-out" placeholder="Leave blank if still working" />
       </div>
     </div>
     <p class="form-note">
-      ⚡ Apps Script recalculates late/early minutes, hours, and row color automatically.<br>
+      ⚡ Apps Script auto-recalculates late/early minutes, hours, and status color on the Google Sheet.<br>
       Leave Clock Out blank if the employee is still on shift.
     </p>
     <div id="manual-result" class="manual-result hidden"></div>
@@ -73,7 +76,10 @@
   </div>
 </div>
 
+<!-- APP -->
 <div id="app">
+
+  <!-- HEADER -->
   <header id="hdr">
     <div class="hdr-inner">
       <div class="brand">
@@ -109,7 +115,10 @@
     </div>
   </header>
 
+  <!-- MAIN -->
   <main id="main">
+
+    <!-- LEFT: CLOCK IN/OUT PANEL -->
     <section class="panel panel-clock" id="panel-clock">
       <h2 class="panel-title">CLOCK IN / OUT</h2>
       <div class="emp-selector-wrap" id="emp-selector-wrap">
@@ -146,6 +155,7 @@
       </div>
     </section>
 
+    <!-- RIGHT: TODAY'S ROSTER -->
     <section class="panel panel-today" id="panel-today">
       <div class="today-header">
         <h2 class="panel-title">TODAY'S ROSTER</h2>
@@ -167,13 +177,19 @@
           </tbody>
         </table>
       </div>
-      <div class="leaders-strip" id="leaders-strip">
-        <div class="leaders-strip-title">THIS WEEK'S ON-TIME LEADERS</div>
-        <div class="leaders-row" id="leaders-row">
-          <span class="leader-placeholder">Loading…</span>
+      <!-- Stats Panel -->
+      <div class="stats-panel" id="stats-panel">
+        <div class="stats-tabs">
+          <button class="stats-tab active" data-tab="week">THIS WEEK</button>
+          <button class="stats-tab" data-tab="month">THIS MONTH</button>
+          <button class="stats-tab" data-tab="year">THIS YEAR</button>
         </div>
+        <div class="stats-content" id="stats-week"><span class="leader-placeholder">Loading…</span></div>
+        <div class="stats-content hidden" id="stats-month"></div>
+        <div class="stats-content hidden" id="stats-year"></div>
       </div>
     </section>
+
   </main>
 </div>
 
