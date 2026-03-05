@@ -27,8 +27,7 @@ var requestInFlight = false;
 
 /* ── WAIT FOR DOM ───────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded", function () {
-  if (APPS_SCRIPT_URL === https://script.google.com/macros/s/AKfycby2u7k6mgFu-oAwv_nIHmetNfh_v1vOj6KVRP0CcpBxFJoeho1mAktp9h1vctBi8coT/exec) {
-    showStatus("Apps Script URL not set — open app.js on GitHub and paste your URL on line 8", "error");
+if (APPS_SCRIPT_URL === https://script.google.com/macros/s/AKfycby2u7k6mgFu-oAwv_nIHmetNfh_v1vOj6KVRP0CcpBxFJoeho1mAktp9h1vctBi8coT/exec) {    showStatus("Apps Script URL not set — open app.js on GitHub and paste your URL on line 8", "error");
     document.getElementById("refresh-label").textContent = "Not connected — URL missing";
     return;
   }
