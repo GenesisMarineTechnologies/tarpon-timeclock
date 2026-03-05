@@ -5,9 +5,9 @@
  */
 
 /* ── CONFIG ──────────────────────────────────────────────── */
-const APPS_SCRIPT_URL = https://script.google.com/macros/s/AKfycbzebvDV7owDASWSXwo_GN6WkACaCnSg_UPaltDumR78KXfTUtX0MRQvvnsmz3WgAbxYMQ/exec
+const APPS_SCRIPT_URL = https://script.google.com/macros/s/AKfycbzebvDV7owDASWSXwo_GN6WkACaCnSg_UPaltDumR78KXfTUtX0MRQvvnsmz3WgAbxYMQ/exec; // ← paste here
 const TIMEZONE        = "America/New_York";
-const REFRESH_MS      = 30_000; // auto-refresh every 30s
+const REFRESH_MS      = 30000; // auto-refresh every 30s
 
 /* ── STATE ───────────────────────────────────────────────── */
 let employees        = [];
@@ -290,13 +290,14 @@ async function doClockAction(action, emp) {
 
     if (res.ok) {
       const verb = action === "clock-in" ? "clocked in" : "clocked out";
-      const time = res.data?.displayTime || "";
-      const late = res.data?.lateMinutes;
+      const d    = res.data || {};
+      const time = d.displayTime || "";
+      const late = d.lateMinutes;
       let extra  = "";
       if (action === "clock-in") {
-        if (late === 0)  extra = " — On Time ✓";
-        else if (late > 0) extra = ` — ${late} min late`;
-        else if (res.data?.earlyMinutes > 0) extra = ` — ${res.data.earlyMinutes} min early ✓`;
+        if (late === 0)  extra = " — On Time";
+        else if (late > 0) extra = " — " + late + " min late";
+        else if (d.earlyMinutes > 0) extra = " — " + d.earlyMinutes + " min early";
       }
       showStatus(`✓ ${emp.displayName} ${verb} at ${time}${extra}`, "success");
       await refreshDashboard();
@@ -361,7 +362,7 @@ function renderRoster(rows) {
     const hasIn  = !!r.clockInDisplay;
     const late   = r.lateMinutes;
     const early  = r.earlyMinutes;
-    const code   = r.statusCode?.toLowerCase() || "none";
+    const code   = (r.statusCode ? r.statusCode.toLowerCase() : "") || "none";
     const delta  = hasIn ? deltaLabel(late, early) : "—";
     const dColor = code === "green" ? "var(--green)"
       : code === "yellow" ? "var(--yellow)"
@@ -477,7 +478,8 @@ btnManualSave.addEventListener("click", async () => {
       employeeId: empId, date, clockIn: cin, clockOut: cout
     });
     if (res.ok) {
-      const name = manualEmpSelect.selectedOptions[0]?.text || empId;
+      const selOpt = manualEmpSelect.selectedOptions[0];
+      const name   = (selOpt ? selOpt.text : "") || empId;
       showManualResult(
         `✓ Saved: ${name} on ${date}\n` +
         `Clock In: ${cin || "—"}   Clock Out: ${cout || "—"}\n` +
