@@ -568,11 +568,13 @@ input[type="time"].form-control { font-variant-numeric: tabular-nums; }
 .pill-orange { background: var(--orange-bg); color: var(--orange); }
 .pill-red    { background: var(--red-bg);    color: var(--red); }
 .pill-none   { background: var(--surface-3); color: var(--text-3); }
+.pill-ot     { background: var(--teal-glow); color: var(--teal-dark); }
 .dot-green  { background: var(--green);  box-shadow: 0 0 4px var(--green); }
 .dot-yellow { background: var(--yellow); box-shadow: 0 0 4px var(--yellow); }
 .dot-orange { background: var(--orange); box-shadow: 0 0 4px var(--orange); }
 .dot-red    { background: var(--red);    box-shadow: 0 0 4px var(--red); }
 .dot-none   { background: var(--text-4); }
+.dot-ot     { background: var(--teal);   box-shadow: 0 0 4px var(--teal); }
 
 /* ── LEADERS STRIP ────────────────────────────────────────── */
 .leaders-strip {
