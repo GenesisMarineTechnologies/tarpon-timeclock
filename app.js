@@ -1,4 +1,4 @@
-var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzzncH4ZFgw4ABWZLwZUlNsRKsdmEfwdjkoL_XGFN0Q2uqtkB-Kr7YtfGTl74TsDmRI/exec";
+var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxrV1dUyaFwqgE93zC5_syMn9wY0Fh967XmaFA3Z3juy7ehO945gOzx-wEHKt6CJ4i2/exec";
 var TIMEZONE = "America/New_York";
 
 /* ── CLOCK — runs immediately, no API needed ────────────── */
@@ -20,15 +20,17 @@ setInterval(updateClock, 1000);
 updateClock();
 
 /* ── STATE ──────────────────────────────────────────────── */
-var employees = [];
+var employees        = [];
 var selectedEmployee = null;
-var pendingAction = null;
-var requestInFlight = false;
+var pendingAction    = null;
+var requestInFlight  = false;
+var lunchStartTime   = "12:00";
+var lunchEndTime     = "12:30";
 
 /* ── WAIT FOR DOM ───────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded", function () {
-  if (APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycby2u7k6mgFu-oAwv_nIHmetNfh_v1vOj6KVRP0CcpBxFJoeho1mAktp9h1vctBi8coT/exec") {
-    showStatus("Apps Script URL not set — open app.js on GitHub and paste your URL on line 8", "error");
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf("script.google.com/macros/s/") === -1) {
+    showStatus("Apps Script URL not set — open app.js and paste your deployment URL on line 1", "error");
     document.getElementById("refresh-label").textContent = "Not connected — URL missing";
     return;
   }
@@ -83,7 +85,6 @@ function apiGet(route, params, callback) {
 }
 
 function apiPost(route, body, callback) {
-  // Use GET to avoid CORS issues with Apps Script
   var params = { route: route };
   var keys = Object.keys(body);
   for (var i = 0; i < keys.length; i++) { params[keys[i]] = body[keys[i]]; }
@@ -116,6 +117,8 @@ function loadConfig() {
       document.getElementById("shift-start-label").textContent = s;
       document.getElementById("shift-end-label").textContent = e;
     }
+    if (data.lunchStartTime) lunchStartTime = data.lunchStartTime;
+    if (data.lunchEndTime)   lunchEndTime   = data.lunchEndTime;
   });
 }
 
@@ -138,6 +141,13 @@ function loadEmployees() {
   });
 }
 
+function escAttr(s) {
+  return String(s || "").replace(/&/g,"&amp;").replace(/'/g,"&#39;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function escHtml(s) {
+  return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
 function renderEmployeeList(list) {
   var el = document.getElementById("emp-list");
   el.classList.add("open");
@@ -148,10 +158,10 @@ function renderEmployeeList(list) {
   var html = "";
   for (var i = 0; i < list.length; i++) {
     var e = list[i];
-    html += "<li data-id='" + e.employeeId + "' data-name='" + e.displayName + "' data-role='" + (e.role || "") + "'>";
-    html += "<div class='emp-avatar-sm'>" + initials(e.displayName) + "</div>";
-    html += e.displayName;
-    if (e.role) html += "<span class='emp-role'>" + e.role + "</span>";
+    html += "<li data-id='" + escAttr(e.employeeId) + "' data-name='" + escAttr(e.displayName) + "' data-role='" + escAttr(e.role || "") + "'>";
+    html += "<div class='emp-avatar-sm'>" + escHtml(initials(e.displayName)) + "</div>";
+    html += escHtml(e.displayName);
+    if (e.role) html += "<span class='emp-role'>" + escHtml(e.role) + "</span>";
     html += "</li>";
   }
   el.innerHTML = html;
@@ -173,7 +183,7 @@ function populateManualSelect(list) {
   var sel = document.getElementById("manual-emp");
   sel.innerHTML = "<option value=''>-- Select Employee --</option>";
   for (var i = 0; i < list.length; i++) {
-    sel.innerHTML += "<option value='" + list[i].employeeId + "'>" + list[i].displayName + "</option>";
+    sel.innerHTML += "<option value='" + escAttr(list[i].employeeId) + "'>" + escHtml(list[i].displayName) + "</option>";
   }
 }
 
@@ -199,8 +209,10 @@ function selectEmployee(id, name, role) {
   document.getElementById("selected-name").textContent = name;
   document.getElementById("selected-avatar").textContent = initials(name);
   document.getElementById("selected-display").classList.remove("hidden");
+  // Buttons enabled; updateButtonState will refine once dashboard loads
   document.getElementById("btn-in").disabled = false;
   document.getElementById("btn-out").disabled = false;
+  updateButtonStateForEmployee(id);
   clearStatus();
 }
 
@@ -211,11 +223,75 @@ document.getElementById("clear-btn").addEventListener("click", function () {
 function clearSelection() {
   selectedEmployee = null;
   document.getElementById("selected-display").classList.add("hidden");
-  document.getElementById("btn-in").disabled = true;
+  document.getElementById("btn-in").disabled  = true;
   document.getElementById("btn-out").disabled = true;
+  setLunchButtons("hidden");
   document.getElementById("emp-search").value = "";
   renderEmployeeList(employees);
   clearStatus();
+}
+
+/* ── BUTTON STATE MACHINE ───────────────────────────────── */
+// punchState: none | in | lunch_out | lunch_in | out
+var lastDashboardRows = [];
+
+function updateButtonStateForEmployee(empId) {
+  var row = null;
+  for (var i = 0; i < lastDashboardRows.length; i++) {
+    if (lastDashboardRows[i].employeeId === empId) { row = lastDashboardRows[i]; break; }
+  }
+  var state = row ? row.punchState : "none";
+  applyButtonState(state);
+}
+
+function applyButtonState(state) {
+  var btnIn   = document.getElementById("btn-in");
+  var btnOut  = document.getElementById("btn-out");
+  var btnLOut = document.getElementById("btn-lunch-out");
+  var btnLIn  = document.getElementById("btn-lunch-in");
+
+  // Reset all
+  btnIn.disabled  = true;  btnIn.classList.remove("hidden");
+  btnOut.disabled = true;  btnOut.classList.remove("hidden");
+  btnLOut.classList.add("hidden"); btnLOut.disabled = true;
+  btnLIn.classList.add("hidden");  btnLIn.disabled  = true;
+
+  if (state === "none") {
+    // Only Clock In available
+    btnIn.disabled = false;
+    btnOut.classList.add("hidden");
+
+  } else if (state === "in") {
+    // Lunch Out (primary) + Clock Out (secondary, emergency)
+    btnIn.classList.add("hidden");
+    btnOut.disabled = false;
+    btnLOut.classList.remove("hidden"); btnLOut.disabled = false;
+
+  } else if (state === "lunch_out") {
+    // Only Lunch In available
+    btnIn.classList.add("hidden");
+    btnOut.classList.add("hidden");
+    btnLIn.classList.remove("hidden"); btnLIn.disabled = false;
+
+  } else if (state === "lunch_in") {
+    // Only Clock Out available
+    btnIn.classList.add("hidden");
+    btnOut.disabled = false;
+
+  } else if (state === "out") {
+    // Day complete — nothing
+    btnIn.classList.add("hidden");
+    btnOut.classList.add("hidden");
+  }
+}
+
+function setLunchButtons(display) {
+  var btnLOut = document.getElementById("btn-lunch-out");
+  var btnLIn  = document.getElementById("btn-lunch-in");
+  if (display === "hidden") {
+    btnLOut.classList.add("hidden");
+    btnLIn.classList.add("hidden");
+  }
 }
 
 /* ── CONFIRM MODAL ──────────────────────────────────────── */
@@ -225,12 +301,25 @@ document.getElementById("btn-in").addEventListener("click", function () {
 document.getElementById("btn-out").addEventListener("click", function () {
   openConfirm("clock-out");
 });
+document.getElementById("btn-lunch-out").addEventListener("click", function () {
+  openConfirm("lunch-out");
+});
+document.getElementById("btn-lunch-in").addEventListener("click", function () {
+  openConfirm("lunch-in");
+});
+
+var ACTION_LABELS = {
+  "clock-in":   "CLOCK IN",
+  "clock-out":  "CLOCK OUT",
+  "lunch-out":  "LUNCH OUT",
+  "lunch-in":   "BACK FROM LUNCH"
+};
 
 function openConfirm(action) {
   if (!selectedEmployee || requestInFlight) return;
   var snap = { employeeId: selectedEmployee.employeeId, displayName: selectedEmployee.displayName };
   pendingAction = { action: action, snap: snap };
-  document.getElementById("confirm-action-label").textContent = action === "clock-in" ? "CLOCK IN" : "CLOCK OUT";
+  document.getElementById("confirm-action-label").textContent = ACTION_LABELS[action] || action.toUpperCase();
   document.getElementById("confirm-name").textContent = snap.displayName;
   document.getElementById("confirm-overlay").classList.remove("hidden");
 }
@@ -254,51 +343,60 @@ document.getElementById("confirm-no").addEventListener("click", function () {
   clearSelection();
 });
 
-/* ── CLOCK ACTION ───────────────────────────────────────── */
+/* ── CLOCK / LUNCH ACTION ───────────────────────────────── */
 function doClockAction(action, emp) {
   requestInFlight = true;
-  document.getElementById("btn-in").disabled  = true;
-  document.getElementById("btn-out").disabled = true;
-  document.getElementById("btn-in").querySelector(".btn-label").textContent  = "...";
-  document.getElementById("btn-out").querySelector(".btn-label").textContent = "...";
+
+  // Disable all action buttons during flight
+  var allBtns = ["btn-in","btn-out","btn-lunch-out","btn-lunch-in"];
+  allBtns.forEach(function(id) {
+    var b = document.getElementById(id);
+    if (b) { b.disabled = true; }
+  });
   clearStatus();
 
   apiPost(action, { employeeId: emp.employeeId }, function (err, res) {
     requestInFlight = false;
-    document.getElementById("btn-in").querySelector(".btn-label").textContent  = "CLOCK IN";
-    document.getElementById("btn-out").querySelector(".btn-label").textContent = "CLOCK OUT";
 
     if (err || !res) {
       showStatus("Cannot reach server. Check Wi-Fi.", "error");
-      if (selectedEmployee) {
-        document.getElementById("btn-in").disabled  = false;
-        document.getElementById("btn-out").disabled = false;
-      }
+      updateButtonStateForEmployee(emp.employeeId);
       return;
     }
 
     if (res.ok) {
-      var d     = res.data || {};
-      var verb  = action === "clock-in" ? "clocked in" : "clocked out";
-      var time  = d.displayTime || "";
-      var extra = "";
+      var d    = res.data || {};
+      var time = d.displayTime || "";
+      var msg  = "";
+
       if (action === "clock-in") {
         var late  = parseInt(d.lateMinutes)  || 0;
         var early = parseInt(d.earlyMinutes) || 0;
-        if (late > 0)       extra = " \u2014 " + late + " min late";
-        else if (early > 0) extra = " \u2014 " + early + " min early";
-        else                extra = " \u2014 On Time";
+        var tag   = late > 0 ? " \u2014 " + late + " min late"
+                  : early > 0 ? " \u2014 " + early + " min early"
+                  : " \u2014 On Time";
+        msg = emp.displayName + " clocked in at " + time + tag;
+
+      } else if (action === "clock-out") {
+        var hrs = d.workedHours ? " \u2014 " + d.workedHours + " hrs worked" : "";
+        msg = emp.displayName + " clocked out at " + time + hrs;
+
+      } else if (action === "lunch-out") {
+        msg = emp.displayName + " went to lunch at " + time;
+
+      } else if (action === "lunch-in") {
+        var ll = parseInt(d.lunchLateMinutes) || 0;
+        var ltag = ll > 0 ? " \u2014 " + ll + " min late returning" : " \u2014 On time";
+        msg = emp.displayName + " returned from lunch at " + time + ltag;
       }
-      showStatus(emp.displayName + " " + verb + " at " + time + extra, "success");
+
+      showStatus(msg, "success");
       loadDashboard();
       loadLeaders();
       setTimeout(function () { clearSelection(); }, 4000);
     } else {
       showStatus(res.error || "Action failed. Please try again.", "error");
-      if (selectedEmployee) {
-        document.getElementById("btn-in").disabled  = false;
-        document.getElementById("btn-out").disabled = false;
-      }
+      updateButtonStateForEmployee(emp.employeeId);
     }
   });
 }
@@ -323,7 +421,12 @@ function loadDashboard() {
         "<tr><td colspan='5' class='loading-cell'>Could not load roster</td></tr>";
       return;
     }
-    renderRoster(data.rows || []);
+    lastDashboardRows = data.rows || [];
+    renderRoster(lastDashboardRows);
+    // Refresh button state for currently selected employee
+    if (selectedEmployee) {
+      updateButtonStateForEmployee(selectedEmployee.employeeId);
+    }
   });
 }
 
@@ -338,32 +441,46 @@ function renderRoster(rows) {
     var r      = rows[i];
     var hasIn  = !!r.clockInDisplay;
     var hasOut = !!r.clockOutDisplay;
-    var late   = parseInt(r.lateMinutes)     || 0;
-    var early  = parseInt(r.earlyMinutes)    || 0;
-    var ot     = parseInt(r.overtimeMinutes) || 0;
+    var late   = parseInt(r.lateMinutes)      || 0;
+    var early  = parseInt(r.earlyMinutes)     || 0;
+    var ot     = parseInt(r.overtimeMinutes)  || 0;
+    var ll     = parseInt(r.lunchLateMinutes) || 0;
+    var state  = r.punchState || (hasIn ? "in" : "none");
     var code   = hasIn ? getStatusCode(late) : "none";
 
-    // Build delta string showing ALL three values that apply
+    // Clock-In column — show lunch status if on lunch
+    var cinDisplay = r.clockInDisplay || "\u2014";
+    if (state === "lunch_out") {
+      cinDisplay = (r.clockInDisplay || "") + "<br><span style='color:var(--yellow);font-size:11px'>\uD83C\uDF74 at lunch</span>";
+    } else if (state === "lunch_in") {
+      cinDisplay = (r.clockInDisplay || "") + "<br><span style='color:var(--green);font-size:11px'>\u2713 back from lunch</span>";
+    }
+
+    // Delta column — arrival, OT, lunch late all stacked
     var deltaParts = [];
     if (hasIn) {
       if (late > 0)        deltaParts.push('<span style="color:var(--' + (late >= 5 ? "red" : late >= 2 ? "orange" : "yellow") + ')">+' + late + 'm late</span>');
       else if (early > 0)  deltaParts.push('<span style="color:var(--teal)">-' + early + 'm early</span>');
       else                 deltaParts.push('<span style="color:var(--green)">on time</span>');
       if (ot > 0)          deltaParts.push('<span style="color:var(--green)">+' + ot + 'm OT</span>');
+      if (ll > 0)          deltaParts.push('<span style="color:var(--orange)">\uD83C\uDF74+' + ll + 'm lunch</span>');
     }
     var delta = hasIn ? deltaParts.join('<br>') : "\u2014";
 
-    // Pill: arrival status only
+    // Status pill — arrival punctuality only
     var pillLabel = !hasIn ? "Not In"
       : code === "green"  ? "On Time"
       : code === "yellow" ? "1 min late"
       : late + "m late";
     var pillCode = !hasIn ? "none" : code;
 
+    // Clock-out column
+    var coutDisplay = r.clockOutDisplay || "\u2014";
+
     html += "<tr>";
     html += "<td class='td-name'>" + r.displayName + "</td>";
-    html += "<td class='td-time'>" + (r.clockInDisplay  || "\u2014") + "</td>";
-    html += "<td class='td-time'>" + (r.clockOutDisplay || "\u2014") + "</td>";
+    html += "<td class='td-time'>" + cinDisplay + "</td>";
+    html += "<td class='td-time'>" + coutDisplay + "</td>";
     html += "<td class='td-delta'>" + delta + "</td>";
     html += "<td><span class='pill pill-" + pillCode + "'><span class='pill-dot dot-" + pillCode + "'></span>" + pillLabel + "</span></td>";
     html += "</tr>";
@@ -402,7 +519,6 @@ function renderStatsTable(period, leaders, allStats) {
     return;
   }
 
-  // Sort by on-time % desc, then least late min
   var sorted = allStats.slice().sort(function (a, b) {
     var pa = a.onTimePercent !== null ? a.onTimePercent : -1;
     var pb = b.onTimePercent !== null ? b.onTimePercent : -1;
@@ -410,7 +526,7 @@ function renderStatsTable(period, leaders, allStats) {
     return (a.totalLateMin || 0) - (b.totalLateMin || 0);
   });
 
-  var medals = ["\uD83E\uDD47", "\uD83E\uDD48", "\uD83E\uDD49"];
+  var medals     = ["\uD83E\uDD47", "\uD83E\uDD48", "\uD83E\uDD49"];
   var leaderNames = leaders.map(function (l) { return l.displayName; });
 
   var html = "<table class='stats-table'>";
@@ -421,6 +537,7 @@ function renderStatsTable(period, leaders, allStats) {
   html += "<th class='st-num' style='color:var(--red)'>Late<br>Min</th>";
   html += "<th class='st-num' style='color:var(--teal)'>Early<br>Min</th>";
   html += "<th class='st-num' style='color:var(--green)'>OT<br>Min</th>";
+  html += "<th class='st-num' style='color:var(--orange)'>\uD83C\uDF74<br>Late</th>";
   html += "<th class='st-num'>On Time</th>";
   html += "</tr></thead><tbody>";
 
@@ -436,17 +553,19 @@ function renderStatsTable(period, leaders, allStats) {
       : s.onTimePercent >= 50 ? "var(--orange)"
       : "var(--red)";
 
-    var lateColor  = s.totalLateMin      > 0 ? "var(--red)"   : "var(--text-3)";
-    var earlyColor = s.totalEarlyMin     > 0 ? "var(--teal)"  : "var(--text-3)";
-    var otColor    = s.totalOvertimeMin  > 0 ? "var(--green)" : "var(--text-3)";
+    var lateColor  = (s.totalLateMin      || 0) > 0 ? "var(--red)"    : "var(--text-3)";
+    var earlyColor = (s.totalEarlyMin     || 0) > 0 ? "var(--teal)"   : "var(--text-3)";
+    var otColor    = (s.totalOvertimeMin  || 0) > 0 ? "var(--green)"  : "var(--text-3)";
+    var llColor    = (s.totalLunchLateMin || 0) > 0 ? "var(--orange)" : "var(--text-3)";
 
     html += "<tr class='st-row'>";
     html += "<td class='st-name'>" + medal + s.displayName + "</td>";
     html += "<td class='st-num'>" + (s.shifts || "\u2014") + "</td>";
     html += "<td class='st-num'>" + (s.totalHours !== null ? s.totalHours : "\u2014") + "</td>";
-    html += "<td class='st-num' style='color:" + lateColor  + "'>" + (s.totalLateMin     || "\u2014") + "</td>";
-    html += "<td class='st-num' style='color:" + earlyColor + "'>" + (s.totalEarlyMin    || "\u2014") + "</td>";
-    html += "<td class='st-num' style='color:" + otColor    + "'>" + (s.totalOvertimeMin || "\u2014") + "</td>";
+    html += "<td class='st-num' style='color:" + lateColor  + "'>" + (s.totalLateMin      || "\u2014") + "</td>";
+    html += "<td class='st-num' style='color:" + earlyColor + "'>" + (s.totalEarlyMin     || "\u2014") + "</td>";
+    html += "<td class='st-num' style='color:" + otColor    + "'>" + (s.totalOvertimeMin  || "\u2014") + "</td>";
+    html += "<td class='st-num' style='color:" + llColor    + "'>" + (s.totalLunchLateMin || "\u2014") + "</td>";
     html += "<td class='st-num' style='color:" + pctColor   + "'>" + (s.onTimePercent !== null ? s.onTimePercent + "%" : "\u2014") + "</td>";
     html += "</tr>";
   }
@@ -463,10 +582,12 @@ document.getElementById("btn-admin").addEventListener("click", function () {
 
 function openManual() {
   var today = new Date().toLocaleDateString("en-CA", { timeZone: TIMEZONE });
-  document.getElementById("manual-date").value = today;
-  document.getElementById("manual-in").value   = "";
-  document.getElementById("manual-out").value  = "";
-  document.getElementById("manual-emp").value  = "";
+  document.getElementById("manual-date").value     = today;
+  document.getElementById("manual-in").value       = "";
+  document.getElementById("manual-out").value      = "";
+  document.getElementById("manual-lunch-out").value = "";
+  document.getElementById("manual-lunch-in").value  = "";
+  document.getElementById("manual-emp").value      = "";
   var resEl = document.getElementById("manual-result");
   resEl.className = "manual-result hidden";
   resEl.textContent = "";
@@ -484,11 +605,13 @@ document.getElementById("manual-overlay").addEventListener("click", function (e)
 });
 
 document.getElementById("btn-manual-save").addEventListener("click", function () {
-  var empId   = document.getElementById("manual-emp").value;
-  var date    = document.getElementById("manual-date").value;
-  var cinRaw  = document.getElementById("manual-in").value;
-  var coutRaw = document.getElementById("manual-out").value;
-  var resEl   = document.getElementById("manual-result");
+  var empId    = document.getElementById("manual-emp").value;
+  var date     = document.getElementById("manual-date").value;
+  var cinRaw   = document.getElementById("manual-in").value;
+  var coutRaw  = document.getElementById("manual-out").value;
+  var loutRaw  = document.getElementById("manual-lunch-out").value;
+  var linRaw   = document.getElementById("manual-lunch-in").value;
+  var resEl    = document.getElementById("manual-result");
 
   function toAmPm(hhmm) {
     if (!hhmm) return "";
@@ -502,24 +625,37 @@ document.getElementById("btn-manual-save").addEventListener("click", function ()
 
   var cin  = toAmPm(cinRaw);
   var cout = toAmPm(coutRaw);
+  var lout = toAmPm(loutRaw);
+  var lin  = toAmPm(linRaw);
 
   if (!empId || !date) {
     resEl.textContent = "Please select an employee and date.";
     resEl.className = "manual-result error"; return;
   }
-  if (!cin && !cout) {
-    resEl.textContent = "Enter at least a clock-in time.";
+  if (!cin && !cout && !lout && !lin) {
+    resEl.textContent = "Enter at least one time.";
     resEl.className = "manual-result error"; return;
   }
   if (cin && cout && coutRaw <= cinRaw) {
     resEl.textContent = "Clock-out must be after clock-in.";
     resEl.className = "manual-result error"; return;
   }
+  if (lout && lin && linRaw <= loutRaw) {
+    resEl.textContent = "Lunch-in must be after lunch-out.";
+    resEl.className = "manual-result error"; return;
+  }
 
   document.getElementById("btn-manual-save").textContent = "SAVING...";
   document.getElementById("btn-manual-save").disabled = true;
 
-  apiPost("manual-entry", { employeeId: empId, date: date, clockIn: cin, clockOut: cout }, function (err, res) {
+  apiPost("manual-entry", {
+    employeeId: empId,
+    date:       date,
+    clockIn:    cin,
+    clockOut:   cout,
+    lunchOut:   lout,
+    lunchIn:    lin
+  }, function (err, res) {
     document.getElementById("btn-manual-save").textContent = "SAVE ENTRY";
     document.getElementById("btn-manual-save").disabled = false;
 
@@ -530,7 +666,13 @@ document.getElementById("btn-manual-save").addEventListener("click", function ()
     if (res.ok) {
       var sel  = document.getElementById("manual-emp");
       var name = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : empId;
-      resEl.textContent = "Saved: " + name + " on " + date + "  In: " + (cin || "\u2014") + "  Out: " + (cout || "\u2014");
+      var lunchNote = res.data && res.data.lunchAssumed
+        ? "  🍽 Lunch 12:00–12:30 PM assumed" : "";
+      resEl.textContent = "Saved: " + name + " on " + date +
+        "  In: " + (cin  || "\u2014") + "  Out: " + (cout || "\u2014") +
+        (lout ? "  Lunch Out: " + lout : "") +
+        (lin  ? "  Lunch In: "  + lin  : "") +
+        lunchNote;
       resEl.className = "manual-result success";
       loadDashboard();
     } else {
