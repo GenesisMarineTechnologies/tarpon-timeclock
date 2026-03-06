@@ -1,4 +1,4 @@
-var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx5OF67apiuvynfSOUYYw1Enew88uLVvlS1q2NMN2Hw6FOWUgC5ezt5El4ZL3F8Bn2i/exec";
+var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbysLTifygjhmR09DSXFulRPgpeH5kLivTTyLDqqddG1NRHy6x8n-czU9Gf-oGDP2a9t/exec";
 var TIMEZONE = "America/New_York";
 
 /* ── CLOCK — runs immediately, no API needed ────────────── */
@@ -83,15 +83,11 @@ function apiGet(route, params, callback) {
 }
 
 function apiPost(route, body, callback) {
-  body.route = route;
-  fetch(APPS_SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  })
-    .then(function (r) { return r.json(); })
-    .then(function (d) { callback(null, d); })
-    .catch(function (e) { callback(e, null); });
+  // Use GET to avoid CORS issues with Apps Script
+  var params = { route: route };
+  var keys = Object.keys(body);
+  for (var i = 0; i < keys.length; i++) { params[keys[i]] = body[keys[i]]; }
+  apiGet(route, params, callback);
 }
 
 /* ── INIT ───────────────────────────────────────────────── */
