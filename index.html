@@ -63,10 +63,18 @@
         <label class="form-label">Clock Out</label>
         <input class="form-control" type="time" id="manual-out" placeholder="Leave blank if still working" />
       </div>
+      <div class="form-group">
+        <label class="form-label">Lunch Out</label>
+        <input class="form-control" type="time" id="manual-lunch-out" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Lunch In</label>
+        <input class="form-control" type="time" id="manual-lunch-in" />
+      </div>
     </div>
     <p class="form-note">
-      ⚡ Apps Script auto-recalculates late/early minutes, hours, and status color on the Google Sheet.<br>
-      Leave Clock Out blank if the employee is still on shift.
+      ⚡ Hours auto-calculated with lunch break excluded. Late/early, OT, and lunch-late minutes recalculated automatically.<br>
+      Leave Clock Out blank if employee is still on shift. Lunch times expected for all full days.
     </p>
     <div id="manual-result" class="manual-result hidden"></div>
     <div class="manual-actions">
@@ -130,6 +138,16 @@
           <span class="btn-icon">→</span>
           <span class="btn-label">CLOCK IN</span>
           <span class="btn-sub" id="shift-start-label">7:00 AM</span>
+        </button>
+        <button class="btn-action btn-lunch-out hidden" id="btn-lunch-out" disabled>
+          <span class="btn-icon">🍽</span>
+          <span class="btn-label">LUNCH OUT</span>
+          <span class="btn-sub">12:00 PM</span>
+        </button>
+        <button class="btn-action btn-lunch-in hidden" id="btn-lunch-in" disabled>
+          <span class="btn-icon">↩</span>
+          <span class="btn-label">BACK FROM LUNCH</span>
+          <span class="btn-sub">12:30 PM</span>
         </button>
         <button class="btn-action btn-out" id="btn-out" disabled>
           <span class="btn-icon">←</span>
