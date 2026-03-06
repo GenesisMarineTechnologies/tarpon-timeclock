@@ -1,4 +1,4 @@
-var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx4GOUoSIqlXFDCqMWuKHlF7eVj12CJ5n4smYQ9MGRqz9rcH7SghPsuiiuFluHtvN99/exec";
+var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzzncH4ZFgw4ABWZLwZUlNsRKsdmEfwdjkoL_XGFN0Q2uqtkB-Kr7YtfGTl74TsDmRI/exec";
 var TIMEZONE = "America/New_York";
 
 /* ── CLOCK — runs immediately, no API needed ────────────── */
@@ -115,12 +115,6 @@ function loadConfig() {
       document.getElementById("shift-display").textContent = s + " \u2013 " + e;
       document.getElementById("shift-start-label").textContent = s;
       document.getElementById("shift-end-label").textContent = e;
-    }
-    if (data.logoUrl) {
-      var img = document.getElementById("logo-img");
-      img.src = data.logoUrl;
-      img.style.display = "block";
-      document.getElementById("logo-svg").style.display = "none";
     }
   });
 }
