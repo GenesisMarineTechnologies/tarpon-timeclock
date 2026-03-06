@@ -1,4 +1,4 @@
-var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx5OF67apiuvynfSOUYYw1Enew88uLVvlS1q2NMN2Hw6FOWUgC5ezt5El4ZL3F8Bn2i/exec";
+var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby2u7k6mgFu-oAwv_nIHmetNfh_v1vOj6KVRP0CcpBxFJoeho1mAktp9h1vctBi8coT/exec";
 var TIMEZONE = "America/New_York";
 
 /* ── CLOCK — runs immediately, no API needed ────────────── */
@@ -27,7 +27,7 @@ var requestInFlight = false;
 
 /* ── WAIT FOR DOM ───────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded", function () {
-  if (APPS_SCRIPT_URL === "No website") {
+  if (APPS_SCRIPT_URL === "https://script.google.com/macros/s/AKfycby2u7k6mgFu-oAwv_nIHmetNfh_v1vOj6KVRP0CcpBxFJoeho1mAktp9h1vctBi8coT/exec") {
     showStatus("Apps Script URL not set — open app.js on GitHub and paste your URL on line 8", "error");
     document.getElementById("refresh-label").textContent = "Not connected — URL missing";
     return;
@@ -150,6 +150,7 @@ function loadEmployees() {
 
 function renderEmployeeList(list) {
   var el = document.getElementById("emp-list");
+  el.classList.add("open");
   if (!list || !list.length) {
     el.innerHTML = "<li style='pointer-events:none;color:#4a7a95;padding:16px;font-style:italic'>No employees found</li>";
     return;
@@ -187,11 +188,6 @@ function populateManualSelect(list) {
 }
 
 /* Employee search */
-document.getElementById("emp-search").addEventListener("focus", function () {
-  renderEmployeeList(employees);
-  document.getElementById("emp-list").classList.add("open");
-});
-
 document.getElementById("emp-search").addEventListener("input", function () {
   var q = this.value.toLowerCase();
   var filtered = [];
@@ -199,20 +195,17 @@ document.getElementById("emp-search").addEventListener("input", function () {
     if (employees[i].displayName.toLowerCase().indexOf(q) >= 0) filtered.push(employees[i]);
   }
   renderEmployeeList(filtered);
-  document.getElementById("emp-list").classList.add("open");
 });
 
-document.addEventListener("click", function (e) {
-  if (!e.target.closest("#emp-selector-wrap")) {
-    document.getElementById("emp-list").classList.remove("open");
-  }
+document.getElementById("emp-search").addEventListener("focus", function () {
+  renderEmployeeList(employees);
 });
 
 /* ── SELECT / CLEAR ─────────────────────────────────────── */
 function selectEmployee(id, name, role) {
   selectedEmployee = { employeeId: id, displayName: name, role: role || "" };
   document.getElementById("emp-search").value = "";
-  document.getElementById("emp-list").classList.remove("open");
+  renderEmployeeList(employees);
   document.getElementById("selected-name").textContent = name;
   document.getElementById("selected-avatar").textContent = initials(name);
   document.getElementById("selected-display").classList.remove("hidden");
@@ -231,6 +224,7 @@ function clearSelection() {
   document.getElementById("btn-in").disabled = true;
   document.getElementById("btn-out").disabled = true;
   document.getElementById("emp-search").value = "";
+  renderEmployeeList(employees);
   clearStatus();
 }
 
