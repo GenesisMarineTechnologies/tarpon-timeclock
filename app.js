@@ -1,4 +1,4 @@
-var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbysLTifygjhmR09DSXFulRPgpeH5kLivTTyLDqqddG1NRHy6x8n-czU9Gf-oGDP2a9t/exec";
+var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxstDlRGhu8SOx5AmzKhwjQ19t3Kl70TOCeAem9QMlnl8Kw4qMEsMum7LlkAphjxNwB/exec";
 var TIMEZONE = "America/New_York";
 
 /* ── CLOCK — runs immediately, no API needed ────────────── */
