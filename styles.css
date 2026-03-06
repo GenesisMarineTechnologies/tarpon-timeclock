@@ -478,6 +478,18 @@ input[type="time"].form-control { font-variant-numeric: tabular-nums; }
   border: 1.5px solid var(--border);
 }
 .btn-out:not(:disabled):hover { border-color: var(--teal); background: var(--teal-pale); }
+.btn-lunch-out {
+  background: #fffbe0; color: #6b5200;
+  border: 1.5px solid #f0e060;
+  box-shadow: 0 4px 18px rgba(230,200,0,0.18);
+}
+.btn-lunch-out:not(:disabled):hover { filter: brightness(1.06); }
+.btn-lunch-in {
+  background: #d6f5e6; color: #0d5c30;
+  border: 1.5px solid #72e0a8;
+  box-shadow: 0 4px 18px rgba(61,200,120,0.18);
+}
+.btn-lunch-in:not(:disabled):hover { filter: brightness(1.06); }
 
 /* ── STATUS MESSAGE ───────────────────────────────────────── */
 .status-msg {
