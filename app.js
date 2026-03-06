@@ -1,4 +1,4 @@
-var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwR1nXHjNlzpOsKkG_-O9iG8xkuAV2HkxkDrhOD3yN38rsHNJbl-KNSB2PqkM0Ph4HS/exec";
+var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx4GOUoSIqlXFDCqMWuKHlF7eVj12CJ5n4smYQ9MGRqz9rcH7SghPsuiiuFluHtvN99/exec";
 var TIMEZONE = "America/New_York";
 
 /* ── CLOCK — runs immediately, no API needed ────────────── */
@@ -349,42 +349,28 @@ function renderRoster(rows) {
     var ot     = parseInt(r.overtimeMinutes) || 0;
     var code   = hasIn ? getStatusCode(late) : "none";
 
-    // Delta column: if clocked out show OT (or blank); if still in show late/early arrival
-    var delta = "\u2014";
+    // Build delta string showing ALL three values that apply
+    var deltaParts = [];
     if (hasIn) {
-      if (hasOut) {
-        delta = ot > 0 ? "+" + ot + "m OT" : "0";
-      } else {
-        if (late > 0)       delta = "+" + late + "m";
-        else if (early > 0) delta = "-" + early + "m";
-        else                delta = "0";
-      }
+      if (late > 0)        deltaParts.push('<span style="color:var(--' + (late >= 5 ? "red" : late >= 2 ? "orange" : "yellow") + ')">+' + late + 'm late</span>');
+      else if (early > 0)  deltaParts.push('<span style="color:var(--teal)">-' + early + 'm early</span>');
+      else                 deltaParts.push('<span style="color:var(--green)">on time</span>');
+      if (ot > 0)          deltaParts.push('<span style="color:var(--green)">+' + ot + 'm OT</span>');
     }
+    var delta = hasIn ? deltaParts.join('<br>') : "\u2014";
 
-    var dColor = "var(--text-3)";
-    if (hasIn) {
-      if (hasOut && ot > 0)    dColor = "var(--green)";
-      else if (!hasOut && late > 0)  dColor = late >= 5 ? "var(--red)" : late >= 2 ? "var(--orange)" : "var(--yellow)";
-      else if (!hasOut && late <= 0) dColor = "var(--green)";
-    }
-
+    // Pill: arrival status only
     var pillLabel = !hasIn ? "Not In"
-      : hasOut && ot > 0   ? "+" + ot + "m overtime"
-      : hasOut             ? "Clocked Out"
-      : code === "green"   ? "On Time"
-      : code === "yellow"  ? "1 min late"
+      : code === "green"  ? "On Time"
+      : code === "yellow" ? "1 min late"
       : late + "m late";
-
-    var pillCode = !hasIn ? "none"
-      : hasOut && ot > 0  ? "ot"
-      : hasOut            ? "green"
-      : code;
+    var pillCode = !hasIn ? "none" : code;
 
     html += "<tr>";
     html += "<td class='td-name'>" + r.displayName + "</td>";
     html += "<td class='td-time'>" + (r.clockInDisplay  || "\u2014") + "</td>";
     html += "<td class='td-time'>" + (r.clockOutDisplay || "\u2014") + "</td>";
-    html += "<td class='td-delta' style='color:" + dColor + "'>" + delta + "</td>";
+    html += "<td class='td-delta'>" + delta + "</td>";
     html += "<td><span class='pill pill-" + pillCode + "'><span class='pill-dot dot-" + pillCode + "'></span>" + pillLabel + "</span></td>";
     html += "</tr>";
   }
@@ -439,7 +425,8 @@ function renderStatsTable(period, leaders, allStats) {
   html += "<th class='st-num'>Shifts</th>";
   html += "<th class='st-num'>Hrs</th>";
   html += "<th class='st-num' style='color:var(--red)'>Late<br>Min</th>";
-  html += "<th class='st-num' style='color:var(--teal)'>OT<br>Min</th>";
+  html += "<th class='st-num' style='color:var(--teal)'>Early<br>Min</th>";
+  html += "<th class='st-num' style='color:var(--green)'>OT<br>Min</th>";
   html += "<th class='st-num'>On Time</th>";
   html += "</tr></thead><tbody>";
 
@@ -455,16 +442,18 @@ function renderStatsTable(period, leaders, allStats) {
       : s.onTimePercent >= 50 ? "var(--orange)"
       : "var(--red)";
 
-    var lateColor = s.totalLateMin  > 0 ? "var(--red)"  : "var(--text-3)";
-    var otColor   = s.totalOvertimeMin > 0 ? "var(--teal)" : "var(--text-3)";
+    var lateColor  = s.totalLateMin      > 0 ? "var(--red)"   : "var(--text-3)";
+    var earlyColor = s.totalEarlyMin     > 0 ? "var(--teal)"  : "var(--text-3)";
+    var otColor    = s.totalOvertimeMin  > 0 ? "var(--green)" : "var(--text-3)";
 
     html += "<tr class='st-row'>";
     html += "<td class='st-name'>" + medal + s.displayName + "</td>";
     html += "<td class='st-num'>" + (s.shifts || "\u2014") + "</td>";
     html += "<td class='st-num'>" + (s.totalHours !== null ? s.totalHours : "\u2014") + "</td>";
-    html += "<td class='st-num' style='color:" + lateColor + "'>" + (s.totalLateMin  || "\u2014") + "</td>";
-    html += "<td class='st-num' style='color:" + otColor   + "'>" + (s.totalOvertimeMin || "\u2014") + "</td>";
-    html += "<td class='st-num' style='color:" + pctColor  + "'>" + (s.onTimePercent !== null ? s.onTimePercent + "%" : "\u2014") + "</td>";
+    html += "<td class='st-num' style='color:" + lateColor  + "'>" + (s.totalLateMin     || "\u2014") + "</td>";
+    html += "<td class='st-num' style='color:" + earlyColor + "'>" + (s.totalEarlyMin    || "\u2014") + "</td>";
+    html += "<td class='st-num' style='color:" + otColor    + "'>" + (s.totalOvertimeMin || "\u2014") + "</td>";
+    html += "<td class='st-num' style='color:" + pctColor   + "'>" + (s.onTimePercent !== null ? s.onTimePercent + "%" : "\u2014") + "</td>";
     html += "</tr>";
   }
   html += "</tbody></table>";
