@@ -1,4 +1,4 @@
-var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxrV1dUyaFwqgE93zC5_syMn9wY0Fh967XmaFA3Z3juy7ehO945gOzx-wEHKt6CJ4i2/exec";
+var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzmgVEJEbZQ6p9Wjo658XTUItpRtiv29MV6HRvP1TzyoyU0r7wlwezQIm-gg2QdIihn/exec";
 var TIMEZONE = "America/New_York";
 
 /* ── CLOCK — runs immediately, no API needed ────────────── */
@@ -232,7 +232,7 @@ function clearSelection() {
 }
 
 /* ── BUTTON STATE MACHINE ───────────────────────────────── */
-// punchState: none | in | lunch_out | lunch_in | out
+// punchState: none | in | lunch_out | out
 var lastDashboardRows = [];
 
 function updateButtonStateForEmployee(empId) {
@@ -250,47 +250,36 @@ function applyButtonState(state) {
   var btnLOut = document.getElementById("btn-lunch-out");
   var btnLIn  = document.getElementById("btn-lunch-in");
 
-  // Reset all
+  // Clock In and Clock Out always visible; reset disabled + hide lunch buttons
   btnIn.disabled  = true;  btnIn.classList.remove("hidden");
   btnOut.disabled = true;  btnOut.classList.remove("hidden");
   btnLOut.classList.add("hidden"); btnLOut.disabled = true;
   btnLIn.classList.add("hidden");  btnLIn.disabled  = true;
 
   if (state === "none") {
-    // Only Clock In available
+    // Not clocked in — Clock In active only
     btnIn.disabled = false;
-    btnOut.classList.add("hidden");
 
   } else if (state === "in") {
-    // Lunch Out (primary) + Clock Out (secondary, emergency)
-    btnIn.classList.add("hidden");
+    // Clocked in — Clock Out active + Lunch Out available
     btnOut.disabled = false;
     btnLOut.classList.remove("hidden"); btnLOut.disabled = false;
 
   } else if (state === "lunch_out") {
-    // Only Lunch In available
-    btnIn.classList.add("hidden");
-    btnOut.classList.add("hidden");
+    // At lunch — Back From Lunch only; Clock Out grayed (must return first)
     btnLIn.classList.remove("hidden"); btnLIn.disabled = false;
 
-  } else if (state === "lunch_in") {
-    // Only Clock Out available
-    btnIn.classList.add("hidden");
-    btnOut.disabled = false;
-
   } else if (state === "out") {
-    // Day complete — nothing
-    btnIn.classList.add("hidden");
-    btnOut.classList.add("hidden");
+    // Day complete — both grayed
   }
 }
 
 function setLunchButtons(display) {
-  var btnLOut = document.getElementById("btn-lunch-out");
-  var btnLIn  = document.getElementById("btn-lunch-in");
   if (display === "hidden") {
-    btnLOut.classList.add("hidden");
-    btnLIn.classList.add("hidden");
+    ["btn-lunch-out","btn-lunch-in"].forEach(function(id) {
+      var b = document.getElementById(id);
+      if (b) { b.classList.add("hidden"); b.disabled = true; }
+    });
   }
 }
 
@@ -388,6 +377,7 @@ function doClockAction(action, emp) {
         var ll = parseInt(d.lunchLateMinutes) || 0;
         var ltag = ll > 0 ? " \u2014 " + ll + " min late returning" : " \u2014 On time";
         msg = emp.displayName + " returned from lunch at " + time + ltag;
+
       }
 
       showStatus(msg, "success");
@@ -452,8 +442,6 @@ function renderRoster(rows) {
     var cinDisplay = r.clockInDisplay || "\u2014";
     if (state === "lunch_out") {
       cinDisplay = (r.clockInDisplay || "") + "<br><span style='color:var(--yellow);font-size:11px'>\uD83C\uDF74 at lunch</span>";
-    } else if (state === "lunch_in") {
-      cinDisplay = (r.clockInDisplay || "") + "<br><span style='color:var(--green);font-size:11px'>\u2713 back from lunch</span>";
     }
 
     // Delta column — arrival, OT, lunch late all stacked
