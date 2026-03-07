@@ -491,6 +491,7 @@ input[type="time"].form-control { font-variant-numeric: tabular-nums; }
 }
 .btn-lunch-in:not(:disabled):hover { filter: brightness(1.06); }
 
+
 /* ── STATUS MESSAGE ───────────────────────────────────────── */
 .status-msg {
   border-radius: var(--radius); padding: 14px 18px;
