@@ -1,4 +1,4 @@
-var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzmgVEJEbZQ6p9Wjo658XTUItpRtiv29MV6HRvP1TzyoyU0r7wlwezQIm-gg2QdIihn/exec";
+var APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyjw34f_ToAL99db2n_Ukw_FXTw61UZRcHjZAagIt4SqGAqIB0ihH2-sl676Zp_tLPo/exec";
 var TIMEZONE = "America/New_York";
 
 /* ── CLOCK — runs immediately, no API needed ────────────── */
@@ -466,7 +466,7 @@ function renderRoster(rows) {
     var coutDisplay = r.clockOutDisplay || "\u2014";
 
     html += "<tr>";
-    html += "<td class='td-name'>" + r.displayName + "</td>";
+    html += "<td class='td-name'>" + escHtml(r.displayName) + "</td>";
     html += "<td class='td-time'>" + cinDisplay + "</td>";
     html += "<td class='td-time'>" + coutDisplay + "</td>";
     html += "<td class='td-delta'>" + delta + "</td>";
@@ -508,10 +508,11 @@ function renderStatsTable(period, leaders, allStats) {
   }
 
   var sorted = allStats.slice().sort(function (a, b) {
-    var pa = a.onTimePercent !== null ? a.onTimePercent : -1;
-    var pb = b.onTimePercent !== null ? b.onTimePercent : -1;
-    if (pb !== pa) return pb - pa;
-    return (a.totalLateMin || 0) - (b.totalLateMin || 0);
+    // Rank by total hours worked — most hours first
+    var ha = a.totalHours !== null ? a.totalHours : -1;
+    var hb = b.totalHours !== null ? b.totalHours : -1;
+    if (hb !== ha) return hb - ha;
+    return (a.displayName || "").localeCompare(b.displayName || "");
   });
 
   var medals     = ["\uD83E\uDD47", "\uD83E\uDD48", "\uD83E\uDD49"];
@@ -547,7 +548,7 @@ function renderStatsTable(period, leaders, allStats) {
     var llColor    = (s.totalLunchLateMin || 0) > 0 ? "var(--orange)" : "var(--text-3)";
 
     html += "<tr class='st-row'>";
-    html += "<td class='st-name'>" + medal + s.displayName + "</td>";
+    html += "<td class='st-name'>" + medal + escHtml(s.displayName) + "</td>";
     html += "<td class='st-num'>" + (s.shifts || "\u2014") + "</td>";
     html += "<td class='st-num'>" + (s.totalHours !== null ? s.totalHours : "\u2014") + "</td>";
     html += "<td class='st-num' style='color:" + lateColor  + "'>" + (s.totalLateMin      || "\u2014") + "</td>";
